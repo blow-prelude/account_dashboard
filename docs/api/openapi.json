@@ -1,0 +1,109 @@
+{
+  "components": {
+    "schemas": {
+      "ApiResponse_HealthDTO_": {
+        "properties": {
+          "code": {
+            "default": "OK",
+            "title": "Code",
+            "type": "string"
+          },
+          "data": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/HealthDTO"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "message": {
+            "default": "",
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "title": "ApiResponse[HealthDTO]",
+        "type": "object"
+      },
+      "BacklogDTO": {
+        "description": "启动/运行期积压：待清理队列与孤儿文件。",
+        "properties": {
+          "cleanup": {
+            "default": 0,
+            "title": "Cleanup",
+            "type": "integer"
+          },
+          "orphans": {
+            "default": 0,
+            "title": "Orphans",
+            "type": "integer"
+          }
+        },
+        "title": "BacklogDTO",
+        "type": "object"
+      },
+      "HealthDTO": {
+        "description": "``GET /health`` 的载荷（SDD §6.2.1）。",
+        "properties": {
+          "backlog": {
+            "$ref": "#/components/schemas/BacklogDTO"
+          },
+          "data_dir": {
+            "title": "Data Dir",
+            "type": "string"
+          },
+          "db_ok": {
+            "title": "Db Ok",
+            "type": "boolean"
+          },
+          "status": {
+            "default": "ok",
+            "title": "Status",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "version",
+          "data_dir",
+          "db_ok"
+        ],
+        "title": "HealthDTO",
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "title": "个人财务分析仪表盘",
+    "version": "0.1.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/api/v1/health": {
+      "get": {
+        "operationId": "health_api_v1_health_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_HealthDTO_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Health",
+        "tags": [
+          "health"
+        ]
+      }
+    }
+  }
+}

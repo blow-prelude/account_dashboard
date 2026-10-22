@@ -1,0 +1,32 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# 运行期数据 —— 绝不入库（SDD §3.6）
+data/
+app.toml
+*.lock
+instance.lock
+
+# 测试与工具缓存
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# 本地脱敏样例（真实账单副本不入库）
+tests/fixtures/local/
+
+
+.vscode/
+.workbuddy/
+.claude/
+.codex/

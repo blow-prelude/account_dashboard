@@ -1,0 +1,76 @@
+%% 个人财务分析仪表盘 · 主链路时序（上传 → 解析 → 映射 → 预检 → 确认入库 → 删除/对账）
+%% 与 SDD v1.0 §7.1~§7.6 一一对应；参与者名与 §4 模块名一致
+sequenceDiagram
+    autonumber
+    actor U as 用户
+    participant FE as 前端导入向导
+    participant API as 接口层 /api/v1
+    participant OR as ImportOrchestrator
+    participant BUF as BufferFileManager
+    participant PR as ParserRegistry
+    participant MS as MappingService
+    participant DC as DedupChecker
+    participant IS as IngestService
+    participant CE as ClassificationEngine
+    participant RW as RawTableManager
+    participant DB as SQLite(ledger.db)
+    participant RC as StartupReconciler
+
+    U->>FE: 选择账单文件
+    FE->>API: POST /staging/batches (multipart)
+    API->>API: 入口校验 扩展名/MIME/大小（E1001/E1005）
+    API->>BUF: save_stream() 每 1MB 检查磁盘余量
+    alt 磁盘不足（EX-17）
+        BUF-->>API: FileIOError E4001（已删 .part）
+        API-->>FE: 507 磁盘空间不足
+    end
+    BUF-->>OR: StoredFile
+    OR->>DB: INSERT staging_batch(status=uploaded)
+    OR->>PR: select() + detect_header()（打分探测）
+    OR->>DB: UPDATE status=mapped_pending, encoding/adapter/header_row_no/parse_meta
+    API-->>FE: BatchDTO + 前 20 行预览
+
+    FE->>API: PUT /staging/batches/{id}/mapping
+    API->>API: 五核心字段校验（E1007）
+    API->>MS: apply()（含模板冲突 EX-20）
+    MS->>DB: UPDATE mapped_fields, status=prechecked
+
+    FE->>API: POST /staging/batches/{id}/precheck
+    API->>DC: check(rows) —— 只读
+    DC->>DB: SELECT fp FROM "transaction" WHERE fp IN (...)
+    DC->>DB: UPDATE new_count/dup_count/pending_count（批次计数，非业务数据）
+    DC-->>FE: 逐条 new/dup/pending_manual + 汇总
+    opt 误判补救（P0-1）
+        FE->>API: POST /overrides {row_no, reason}
+        API->>DB: INSERT override_mark
+        FE->>API: 重跑 precheck（该行翻转为 new + override=true）
+    end
+
+    FE->>API: POST /staging/batches/{id}/confirm
+    API->>IS: confirm(batch_id)
+    IS->>DB: BEGIN IMMEDIATE
+    IS->>DB: UPDATE status=ingesting WHERE status=prechecked（rowcount=0 → 409 E2002）
+    IS->>PR: reparse(mapping_snapshot) 重放解析
+    IS->>DC: 入库态二次去重（EX-22）
+    IS->>RW: write_rows(accepted) 按 occurred_at 分月建表 + executemany
+    RW->>DB: INSERT INTO raw_2026_06/07/... (raw_payload 保留原貌)
+    IS->>CE: classify_all() → direction 判定 + 规则评估
+    CE-->>IS: TransactionDraft[]（pending/confirmed）
+    IS->>DB: INSERT INTO "transaction" ...
+    IS->>DB: UPDATE status=ingested, report_json, pending_delete_flag=1
+    IS->>DB: COMMIT
+    IS->>BUF: delete(原始文件)
+    alt 删除成功
+        IS->>DB: UPDATE pending_delete_flag=0, deleted_at
+        IS-->>FE: 200 导入报告（总/新增/跳过重复/待确认）
+    else 删除失败（EX-11）
+        IS->>DB: INSERT cleanup_queue
+        IS-->>FE: 409 E4003「数据已入库，原文件待清理」
+    end
+
+    Note over RC,DB: ── 服务重启（EX-12/16/23）──
+    RC->>DB: UPDATE status=prechecked WHERE status=ingesting（自愈）
+    RC->>DB: SELECT 已入库 且 pending_delete_flag=1
+    RC->>BUF: delete()（补删），失败则入 cleanup_queue
+    RC->>BUF: scan_orphans()（只报告，不自动删）
+    RC->>BUF: ensure_dir()（EX-23 目录重建）

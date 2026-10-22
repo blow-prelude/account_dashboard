@@ -1,0 +1,236 @@
+%% 个人财务分析仪表盘 · 类/模块关系图（按落地包名，非数据库 ER）
+%% 与 SDD v1.0 §4 模块总表一致；箭头 = 「依赖其接口」
+classDiagram
+    direction LR
+
+    %% ── 接口层 ──
+    class routers {
+        <<api/routers/*.py>>
+        +staging()_ingest()_raw()
+        +transactions()_stats()_reports()
+        +rules()_categories()_recalc()
+        +settings()_backup()_maintenance()
+    }
+    class BatchGuard {
+        +assert_transition(current, action)
+        +try_enter_ingesting(uow, batch_id)
+    }
+    class ApiEnvelope {
+        +ok(data, message)
+        +fail(code, message, data)
+    }
+    class ErrorCode {
+        <<StrEnum>>
+        +E1xxx_Entry
+        +E2xxx_Business
+        +E3xxx_Tx
+        +E4xxx_FileIO
+        +E5xxx_System
+    }
+
+    %% ── 业务层 ──
+    class ImportOrchestrator {
+        +create_batch(stream, name, size)
+        +parse_batch(id) ParseResultDTO
+        +preview(id, limit)
+        +apply_mapping(id, mapping)
+        +run_precheck(id)
+    }
+    class MappingService {
+        +list_templates(channel)
+        +save_template(channel, name, spec, policy)
+        +detect_and_suggest(header, channel)
+    }
+    class DedupChecker {
+        +check(rows) PrecheckResult
+        +mark_override(uow, batch_id, row_no, reason)
+        +apply_overrides(batch_id, labels)
+        -label_rows(rows, batch_id)
+        -count_overrides(batch_id)
+    }
+    class IngestService {
+        +confirm(batch_id) IngestReportDTO
+        -_delete_source_file(batch_id)
+    }
+    class ClassificationEngine {
+        +decide_direction(row) Direction
+        +classify_all(rows) TransactionDraft[]
+        +apply_manual(ids, l1, l2) int
+    }
+    class RecalcService {
+        +preview(scope, batch_id, rule_ids) RecalcPreview
+        +recalculate(scope, overwrite_manual) RecalcReportDTO
+    }
+    class StatsService {
+        +base_filter() str
+        +overview(range) OverviewDTO
+        +category_breakdown(range, level)
+        +trend(range, granularity)
+        +summary(filters) SummaryDTO
+        +report(kind, anchor)
+    }
+    class BackupService {
+        +create_db_backup()
+        +validate_backup(path)
+        +restore(path, confirm)
+        +rollback(pre_backup_id)
+        +export(format)
+    }
+    class TransactionService {
+        +list(filters, page, sort)
+        +patch(id, category, note)
+        +batch_set_category(ids, l1, l2, create_rule)
+    }
+    class SettingsService {
+        +get_typed(key)
+        +update(dict)
+        +validate_data_dir(path)
+    }
+    class MigrationService {
+        +dry_run(to)
+        +migrate(to, confirm)
+    }
+    class CleanupService {
+        +enqueue(batch_id, path, reason)
+        +retry(id)
+    }
+
+    %% ── 数据层 ──
+    class UnitOfWork {
+        +begin()
+        +commit()
+        +rollback()
+        +staging / raw / transactions / rules
+    }
+    class SchemaMigrator {
+        +migrate() int
+        +current_version() int
+    }
+    class RawTableManager {
+        +table_name(date) str
+        +ensure_table(conn, table)
+        +existing_tables(conn)
+        +write_rows(rows) dict
+        +query(months, page, size)
+    }
+    class Repos {
+        <<repositories/*_repo.py>>
+        +staging_repo
+        +transaction_repo
+        +rule_repo
+        +category_repo
+        +setting_repo
+        +template_repo
+        +override_repo
+        +cleanup_repo
+        +backup_repo
+        +event_repo
+    }
+
+    %% ── 基础设施 ──
+    class BufferFileManager {
+        +save_stream(stream, name, size)
+        +delete(path)
+        +scan_orphans(known)
+        +usage()
+    }
+    class ParserRegistry {
+        +select(path, channel_hint)
+        +reparse(batch) ParsedRow[]
+    }
+    class ParseAdapter {
+        <<Protocol>>
+        +name / channel / extensions
+        +sniff(path, head) float
+        +detect_header(table) HeaderMatch
+        +iter_rows(table, header, mapping)
+    }
+    class WechatXlsx
+    class AlipayCsv
+    class GenericAdapter
+    class HeaderDetector {
+        +score_headers(table, max_scan)
+    }
+    class Fingerprint {
+        +build_fingerprint(row) str_or_null
+    }
+    class Cleaning {
+        +clean_text(v)
+        +parse_amount_to_cents(v)
+        +parse_time(v)
+        +parse_direction(v, channel)
+    }
+    class PathGuard {
+        +validate_data_dir(raw) Path
+    }
+    class StartupReconciler {
+        +run() ReconciliationReport
+        -reset_stuck_batches()
+        -retry_pending_deletes()
+        -scan_orphans()
+    }
+    class EventLog {
+        +emit(kind, **payload)
+    }
+
+    %% ── 关系 ──
+    routers --> BatchGuard
+    routers --> ImportOrchestrator
+    routers --> IngestService
+    routers --> StatsService
+    routers --> RecalcService
+    routers --> BackupService
+    routers --> TransactionService
+    routers --> SettingsService
+    routers --> MigrationService
+    routers --> ApiEnvelope
+    ApiEnvelope --> ErrorCode
+
+    ImportOrchestrator --> BufferFileManager
+    ImportOrchestrator --> ParserRegistry
+    ImportOrchestrator --> MappingService
+    ImportOrchestrator --> DedupChecker
+    ImportOrchestrator --> UnitOfWork
+
+    IngestService --> BatchGuard
+    IngestService --> ParserRegistry
+    IngestService --> DedupChecker
+    IngestService --> ClassificationEngine
+    IngestService --> RawTableManager
+    IngestService --> UnitOfWork
+    IngestService --> CleanupService
+
+    DedupChecker --> Repos
+    ClassificationEngine --> Repos
+    RecalcService --> ClassificationEngine
+    RecalcService --> Repos
+    StatsService --> Repos
+    StatsService --> ErrorCode
+    BackupService --> UnitOfWork
+    BackupService --> SchemaMigrator
+    TransactionService --> Repos
+    SettingsService --> Repos
+    SettingsService --> PathGuard
+    MigrationService --> PathGuard
+    MigrationService --> BufferFileManager
+    CleanupService --> BufferFileManager
+    CleanupService --> Repos
+
+    ParserRegistry --> ParseAdapter
+    ParseAdapter <|.. WechatXlsx
+    ParseAdapter <|.. AlipayCsv
+    ParseAdapter <|.. GenericAdapter
+    WechatXlsx --> HeaderDetector
+    AlipayCsv --> HeaderDetector
+    GenericAdapter --> HeaderDetector
+    WechatXlsx --> Cleaning
+    AlipayCsv --> Cleaning
+    Cleaning --> Fingerprint
+
+    UnitOfWork --> Repos
+    UnitOfWork --> RawTableManager
+    SchemaMigrator --> UnitOfWork
+    StartupReconciler --> Repos
+    StartupReconciler --> BufferFileManager
+    StartupReconciler --> CleanupService
+    StartupReconciler --> EventLog

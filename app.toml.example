@@ -1,0 +1,24 @@
+# ── 个人财务分析仪表盘 引导配置 ──────────────────────────────
+# 复制为 app.toml 后按需修改；app.toml 已在 .gitignore 中
+# 本文件不参与 git 提交，仅作模板
+
+[server]
+# 只允许回环地址：127.0.0.1 / localhost（写成其他值将拒绝启动，退出码 2）
+host = "127.0.0.1"
+# 1024 ~ 65535；被占用时退出码 5
+port = 8765
+# 启动后是否自动打开浏览器（仅由启动脚本使用）
+open_browser = true
+# 单实例文件锁：同一数据目录只允许一个进程
+single_instance = true
+
+[paths]
+# 留空 → 使用系统用户数据目录（推荐）。填写示例：
+#   Windows: "D:/finance/account_dashboard"
+#   macOS  : "/Users/me/Documents/finance"
+# 规则：必须是本地绝对路径；禁止系统敏感目录、网络路径(UNC)、磁盘根目录
+data_dir = ""
+
+[logging]
+# DEBUG / INFO / WARNING / ERROR
+level = "INFO"
