@@ -1,0 +1,233 @@
+/* ============================================================
+   01 · Design Tokens — 双主题（玫瑰粉 / 天青蓝）
+   语义层变量在此定义，组件层只消费语义变量，不直写色值。
+   ============================================================ */
+
+:root {
+  /* ---- 字体族 ---- */
+  --font-ui: "PingFang SC", "HarmonyOS Sans SC", "Microsoft YaHei", "Hiragino Sans GB",
+             system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-num: "Bahnschrift", "DIN Alternate", "HarmonyOS Sans SC", "PingFang SC",
+              "Microsoft YaHei", sans-serif;
+  --font-mono: "JetBrains Mono", "Cascadia Mono", "SFMono-Regular", Consolas, monospace;
+
+  /* ---- 字号（模块化比例 1.2 / 显示级 1.25） ---- */
+  --t-2xs: 11px;
+  --t-xs: 12px;
+  --t-sm: 13px;
+  --t-md: 14px;
+  --t-lg: 16px;
+  --t-xl: 19px;
+  --t-2xl: 23px;
+  --t-3xl: 28px;
+  --t-4xl: 34px;
+  --t-5xl: 42px;
+
+  /* ---- 字重 ---- */
+  --w-reg: 400;
+  --w-med: 500;
+  --w-semi: 600;
+  --w-bold: 700;
+
+  /* ---- 间距（4px 基准，含 6/10 中间值用于精细对齐） ---- */
+  --s-1: 4px;
+  --s-2: 6px;
+  --s-3: 8px;
+  --s-4: 10px;
+  --s-5: 12px;
+  --s-6: 16px;
+  --s-7: 20px;
+  --s-8: 24px;
+  --s-9: 28px;
+  --s-10: 32px;
+  --s-11: 40px;
+  --s-12: 48px;
+  --s-13: 64px;
+
+  /* ---- 圆角 ---- */
+  --r-xs: 6px;
+  --r-sm: 9px;
+  --r-md: 12px;
+  --r-lg: 16px;
+  --r-xl: 20px;
+  --r-2xl: 26px;
+  --r-pill: 999px;
+
+  /* ---- 动效 ---- */
+  --dur-1: 110ms;
+  --dur-2: 180ms;
+  --dur-3: 300ms;
+  --dur-4: 480ms;
+  --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-inout: cubic-bezier(0.65, 0, 0.35, 1);
+
+  /* ---- 财务语义（两套主题共用色相，仅微调浓度） ---- */
+  --fin-up: #c63c33;          /* 支出增加 / 结余减少 = 不利（国内习惯：红，白底 5.1:1） */
+  --fin-up-soft: #fbeae8;
+  --fin-down: #17795b;        /* 支出减少 / 结余增加 = 有利（国内习惯：绿，白底 5.4:1） */
+  --fin-down-soft: #e6f5ef;
+
+  /* ---- 布局 ---- */
+  --rail-w: 232px;
+  --top-h: 66px;
+  --content-max: 1360px;
+}
+
+/* ============================================================
+   主题 A · 玫瑰粉「少女感」
+   性格：温柔、轻盈、被照顾的感觉；不用高饱和玫红，用灰玫瑰压住甜度，
+        辅以蜜桃与藕荷，避免廉价粉。
+   ============================================================ */
+:root,
+[data-theme="pink"] {
+  color-scheme: light;
+
+  /* 品牌 */
+  --primary: #d03f6b;             /* 填充色：与白字 4.54:1，AA 正文达标 */
+  --primary-hover: #bc355f;
+  --primary-active: #a52c52;
+  --primary-ink: #a62f55;         /* 浅底上的品牌色文字（AA 6.9:1） */
+  --primary-soft: #fce8ee;
+  --primary-softer: #fef3f6;
+  --primary-line: #f5c8d5;
+  --on-primary: #ffffff;
+
+  /* 辅助 */
+  --accent: #e0913f;              /* 蜜桃 */
+  --accent-soft: #fbf0e2;
+  --accent-ink: #a4642c;
+  --violet: #8d7ad4;
+  --violet-soft: #f0edfb;
+
+  /* 中性 · 文字 */
+  --text-1: #3a2930;
+  --text-2: #6b5159;
+  --text-3: #806670;
+  --text-4: #b09aa3;
+
+  /* 中性 · 表面 */
+  --bg: #fdf5f7;
+  --bg-wash-1: rgba(231, 90, 133, 0.10);
+  --bg-wash-2: rgba(231, 154, 92, 0.10);
+  --bg-wash-3: rgba(141, 122, 212, 0.08);
+  --dot: rgba(171, 53, 87, 0.055);
+  --surface: #ffffff;
+  --surface-2: #fffafb;
+  --surface-3: #fdf1f5;
+  --surface-inv: #3a2930;
+
+  /* 中性 · 描边 */
+  --border: #f3e1e6;
+  --border-2: #e8cdd6;
+  --border-3: #d9b2bf;
+
+  /* 阴影（带品牌色温的暖影，不用纯黑） */
+  --shadow-1: 0 1px 2px rgba(122, 55, 79, 0.05);
+  --shadow-2: 0 1px 2px rgba(122, 55, 79, 0.04), 0 10px 24px -16px rgba(122, 55, 79, 0.26);
+  --shadow-3: 0 2px 4px rgba(122, 55, 79, 0.05), 0 24px 56px -28px rgba(122, 55, 79, 0.34);
+  --ring: 0 0 0 3px rgba(208, 63, 107, 0.22);
+
+  /* 图表 */
+  --chart-1: #d03f6b;
+  --chart-2: #e0913f;
+  --chart-3: #8d7ad4;
+  --chart-4: #5aa9d6;
+  --chart-5: #62bfa1;
+  --chart-6: #e8bf5e;
+  --chart-7: #d4829c;
+  --chart-8: #93a6c9;
+  --grid: rgba(58, 41, 48, 0.07);
+  --axis: #bda7b0;
+
+  /* 状态 */
+  --ok: #17795a;
+  --ok-soft: #e6f5ef;
+  --warn: #8a600c;
+  --warn-soft: #fbf2de;
+  --danger: #bc3a2e;
+  --danger-soft: #fcebe9;
+  --info: #ab3557;
+  --info-soft: #fce8ee;
+
+  /* 遮罩 / 玻璃 */
+  --overlay: rgba(58, 33, 43, 0.34);
+  --glass: rgba(255, 255, 255, 0.72);
+  --rail-bg: rgba(255, 255, 255, 0.62);
+  --rail-active: #ffffff;
+  --topbar-bg: rgba(253, 245, 247, 0.80);
+}
+
+/* ============================================================
+   主题 B · 天青蓝「自然清新」
+   性格：透气、克制、有秩序；用天青 + 薄荷，中性色偏冷青，
+        避免 SaaS 常见的亮蓝紫渐变。
+   ============================================================ */
+[data-theme="sky"] {
+  color-scheme: light;
+
+  --primary: #2d7ab2;             /* 填充色：与白字 4.65:1，AA 正文达标 */
+  --primary-hover: #256ba1;
+  --primary-active: #1d5c8c;
+  --primary-ink: #1d5f92;
+  --primary-soft: #e2eff9;
+  --primary-softer: #f0f8fd;
+  --primary-line: #bfdcf0;
+  --on-primary: #ffffff;
+
+  --accent: #3fae97;
+  --accent-soft: #e3f5f0;
+  --accent-ink: #1f7d69;
+  --violet: #7a8fd6;
+  --violet-soft: #ecf0fb;
+
+  --text-1: #1c2c38;
+  --text-2: #4a6272;
+  --text-3: #607684;
+  --text-4: #9db3c1;
+
+  --bg: #f4fafd;
+  --bg-wash-1: rgba(61, 142, 201, 0.11);
+  --bg-wash-2: rgba(63, 174, 151, 0.10);
+  --bg-wash-3: rgba(122, 143, 214, 0.07);
+  --dot: rgba(29, 99, 152, 0.06);
+  --surface: #ffffff;
+  --surface-2: #f9fcfe;
+  --surface-3: #eef6fb;
+  --surface-inv: #1c2c38;
+
+  --border: #dfeaf2;
+  --border-2: #c8dbe8;
+  --border-3: #aec9db;
+
+  --shadow-1: 0 1px 2px rgba(23, 64, 94, 0.05);
+  --shadow-2: 0 1px 2px rgba(23, 64, 94, 0.04), 0 10px 24px -16px rgba(23, 64, 94, 0.22);
+  --shadow-3: 0 2px 4px rgba(23, 64, 94, 0.05), 0 24px 56px -28px rgba(23, 64, 94, 0.30);
+  --ring: 0 0 0 3px rgba(46, 124, 182, 0.24);
+
+  --chart-1: #2e7cb6;
+  --chart-2: #3fae97;
+  --chart-3: #7a8fd6;
+  --chart-4: #e0a25b;
+  --chart-5: #4fbfd3;
+  --chart-6: #8ac47c;
+  --chart-7: #b08bd4;
+  --chart-8: #dc8391;
+  --grid: rgba(28, 44, 56, 0.07);
+  --axis: #a6bcca;
+
+  --ok: #17795b;
+  --ok-soft: #e4f4ee;
+  --warn: #8a600c;
+  --warn-soft: #faf1dc;
+  --danger: #bc3a2e;
+  --danger-soft: #fbeae7;
+  --info: #1d6398;
+  --info-soft: #e2eff9;
+
+  --overlay: rgba(18, 42, 58, 0.34);
+  --glass: rgba(255, 255, 255, 0.74);
+  --rail-bg: rgba(255, 255, 255, 0.64);
+  --rail-active: #ffffff;
+  --topbar-bg: rgba(244, 250, 253, 0.82);
+}
