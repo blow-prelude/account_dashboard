@@ -6,10 +6,11 @@
 
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse
+from fastapi import FastAPI, Request
+from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from account_dashboard.infra.logger import get_logger
@@ -32,12 +33,25 @@ def mount_spa(app: FastAPI, static_dir: Path) -> bool:
 
     root = static_dir.resolve()
 
-    @app.get("/{full_path:path}", include_in_schema=False)
-    def spa_fallback(full_path: str) -> FileResponse:
-        if _is_reserved(full_path):
-            raise HTTPException(status_code=404, detail="Not Found")
-        if full_path:
-            candidate = (static_dir / full_path).resolve()
+    @app.middleware("http")
+    async def spa_fallback(
+        request: Request, call_next: Callable[[Request], Awaitable[Response]]
+    ) -> Response:
+        """404 之后兜底，而不是注册 ``/{full_path}`` 路由。
+
+        路由式兜底会遮蔽**其后注册**的任何路由（测试探针、后续插件），
+        因为 Starlette 按注册顺序匹配。放在 404 之后既保留 history fallback，
+        又不会吞掉晚注册的接口。``api/openapi/docs`` 前缀不参与兜底。
+        """
+        response = await call_next(request)
+        if response.status_code != 404 or request.method not in ("GET", "HEAD"):
+            return response
+
+        path = request.url.path.lstrip("/")
+        if _is_reserved(path):
+            return response
+        if path:
+            candidate = (static_dir / path).resolve()
             if _is_inside(candidate, root) and candidate.is_file():
                 return FileResponse(candidate)
         return FileResponse(index)

@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="pink">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>记账簿 · 个人财务分析仪表盘</title>
+<meta name="description" content="本地单用户个人财务分析仪表盘：账单导入、按月归档、分类统计与报表。">
+<link rel="stylesheet" href="/assets/css/tokens.css">
+<link rel="stylesheet" href="/assets/css/base.css">
+<link rel="stylesheet" href="/assets/css/pages.css">
+<link rel="stylesheet" href="/assets/css/extra.css">
+<link rel="stylesheet" href="/assets/css/app.css">
+</head>
+<body>
+<div class="app">
+  <aside class="rail" id="rail"></aside>
+  <div class="main">
+    <header class="topbar" id="topbar"></header>
+    <main class="view" id="view" tabindex="-1"></main>
+  </div>
+</div>
+<div class="toasts" id="toasts" aria-live="polite"></div>
+<div class="tip" id="tip" role="tooltip"></div>
+<div id="layer"></div>
+<noscript><p style="padding:24px;font-family:sans-serif">本页面需要启用 JavaScript。</p></noscript>
+<script type="module" src="/assets/js/app.js"></script>
+</body>
+</html>

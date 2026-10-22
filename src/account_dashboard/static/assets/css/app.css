@@ -1,0 +1,112 @@
+/* ============================================================
+   app.css · 实现层补充
+   原型样式直接复用；这里只放「原型没有、实现需要」的少量规则，
+   保持语义变量与组件结构不变。
+   ============================================================ */
+
+/* 数据源标记：真实后端 / 本地演示数据 */
+.src-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 10px;
+  border-radius: var(--r-pill);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  font-size: var(--t-2xs);
+  color: var(--text-3);
+  white-space: nowrap;
+}
+.src-badge i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--ok);
+}
+.src-badge--mock i { background: var(--warn); }
+.src-badge--down i { background: var(--danger); }
+
+/* 首屏加载：view 内骨架 */
+.view[aria-busy="true"] { opacity: .55; transition: opacity var(--dur-2) var(--ease); }
+.view-load {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 60px 0;
+  justify-content: center;
+  color: var(--text-3);
+  font-size: var(--t-sm);
+}
+.spinner {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid var(--primary-line);
+  border-top-color: var(--primary);
+  animation: spin .7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* 拖拽上传态 */
+.dropzone.is-over {
+  background: var(--primary-soft);
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--primary-softer);
+}
+.dropzone input[type="file"] { display: none; }
+
+/* 导入向导中不可回退的操作说明 */
+.wizard__hint .badge { margin-left: 6px; }
+
+/* 表单网格 */
+.form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--s-5);
+}
+@media (max-width: 760px) { .form-grid { grid-template-columns: 1fr; } }
+
+/* 行内可编辑 */
+.cell-edit { display: inline-flex; align-items: center; gap: 4px; }
+.cell-edit svg { opacity: 0; transition: opacity var(--dur-1) var(--ease); }
+tr:hover .cell-edit svg, .cell-edit:focus-visible svg { opacity: .7; }
+
+/* 空态插画底色（沿用组件库形状，不引入图片） */
+.empty__art { background: var(--surface-3); color: var(--text-3); }
+
+/* 长文本在表格里截断 */
+.td-clip { max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* 顶部栏数据目录 */
+.topbar__dir {
+  font-family: var(--font-mono);
+  font-size: var(--t-2xs);
+  color: var(--text-3);
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 汇总数字保持等宽 */
+.ostat__v, .overview__value, .td-num, .num { font-variant-numeric: tabular-nums; }
+
+/* 关闭态弹层不占位 */
+#layer:empty { display: none; }
+
+/* 键盘焦点在深色遮罩上更清晰 */
+.overlay { backdrop-filter: blur(3px); }
+
+/* 打印（报表导出 PDF 走浏览器打印） */
+@media print {
+  .rail, .topbar, .page-head__actions, .toasts, #layer, .tip { display: none !important; }
+  .main { margin: 0 !important; }
+  .view { padding: 0 !important; max-width: none !important; }
+  body { background: #fff; }
+  .card { box-shadow: none; border-color: #ddd; break-inside: avoid; }
+}
+
+/* 复选框描边加深：原型里 1px 浅描边在 1440 宽表格中几乎不可见 */
+.checkbox__box { border-color: var(--text-4); }
+.checkbox:hover .checkbox__box { border-color: var(--primary); }

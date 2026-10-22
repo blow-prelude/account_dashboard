@@ -3,9 +3,11 @@
 本地单用户、单账本的财务分析工具。后端 Python 3.11 + FastAPI + SQLite，数据全部留在本机
 `data/` 目录，不上传、不外联。
 
-> 当前进度：**C1 工程基座已完成**（服务可启动、库可建、错误与日志全站统一）。
+> 当前进度：**C1 工程基座已完成，C2 实施中**；**前端静态 SPA 已交付**
+> （C4 统计接口就绪前使用契约同构的本地数据源，顶栏会明确标注）。
 > 详细计划见 [`docs/devel/README.md`](docs/devel/README.md)，设计依据见
-> [`docs/个人财务分析仪表盘-软件设计文档-v1.0.md`](docs/个人财务分析仪表盘-软件设计文档-v1.0.md)。
+> [`docs/个人财务分析仪表盘-软件设计文档-v1.0.md`](docs/个人财务分析仪表盘-软件设计文档-v1.0.md)，
+> 前端实现与契约消费见 [`docs/frontend/前端实现说明-v1.0.md`](docs/frontend/前端实现说明-v1.0.md)。
 
 ---
 
@@ -50,6 +52,25 @@ uv run account-dashboard run
 | `uv run pytest` | 全部测试 |
 | `uv run ruff check src tests` | 静态检查 |
 | `uv run mypy src` | 类型检查 |
+
+---
+
+## 前端
+
+前端产物在 `src/account_dashboard/static/`，存在时由后端自动挂载到 `/`，单进程单端口、无 CORS：
+
+```
+http://127.0.0.1:8765/            # 仪表盘
+http://127.0.0.1:8765/#detail     # 流水明细
+http://127.0.0.1:8765/#import     # 导入向导
+```
+
+- **零构建**：原生 ES Modules + 语义变量 CSS，无 npm 依赖、无 CDN，产物直接进 wheel。
+- **数据源**：默认自动探测。只有 `/stats/overview` 就绪才用真实后端，否则整体切到「契约同构」的本地数据源（`?mock=1` 强制、`?mock=0` 强制真实、`?mock=reset` 重置演示数据）。避免出现"导入写真实库、报表读演示数据"的混合态。
+- **契约**：金额整数分、时间无时区、统一 `ApiResponse` 信封、错误码按 SDD §6.5 处理；统计不做前端聚合。
+- **自检**：`node --experimental-default-type=module scripts/check-frontend.mjs`（语法 + 三入口同源 + 导入幂等 + 模板/重算/备份链路）。
+
+前端细节、DTO 消费表、与原型的有意差异见 [`docs/frontend/前端实现说明-v1.0.md`](docs/frontend/前端实现说明-v1.0.md)。
 
 ---
 
