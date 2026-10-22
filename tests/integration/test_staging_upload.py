@@ -185,3 +185,77 @@ def test_preview_limit_validation(
     response = client.get(f"{PREFIX}/batches/{batch['id']}/preview", params={"limit": limit})
     assert response.status_code == 422
     assert response.json()["code"] == "E1010"
+
+
+# ── 合稿验收 #7 / #10（C2-合稿与耦合收口.md §6）─────────────────────────────
+
+
+def _detected_mapping(client: TestClient, batch_id: str) -> dict[str, object]:
+    preview = client.get(f"{PREFIX}/batches/{batch_id}/preview", params={"limit": 1}).json()
+    payload = dict(preview["data"]["detected_fields"])
+    payload.update({"direction_map": {}, "amount_scale": 1})
+    return payload
+
+
+def test_reparse_on_prechecked_resets_counts_and_snapshot(
+    client: TestClient, upload, fixtures_dir: Path
+) -> None:
+    """验收 #7：prechecked 重新解析 → 回 mapped_pending，计数重算，快照作废。
+
+    快照必须作废（`mapping_snapshot = NULL`）：批次已退回「待映射」，若仍带着上一次
+    预检的快照，C3 的 `replay()` 会拿到与当前 `mapped_fields` 不一致的口径入库，
+    而「必须先 precheck」这道闸门也会被绕过。
+    """
+    batch = upload(fixtures_dir / "alipay_sample_gb18030.csv")
+    batch_id = batch["id"]
+    client.put(f"{PREFIX}/batches/{batch_id}/mapping", json=_detected_mapping(client, batch_id))
+
+    prechecked = client.post(f"{PREFIX}/batches/{batch_id}/precheck").json()["data"]
+    assert prechecked["summary"]["new"] == 669
+    detail = client.get(f"{PREFIX}/batches/{batch['id']}").json()["data"]
+    assert detail["status"] == "prechecked"
+    assert detail["new_count"] == 669
+    assert detail["mapping_snapshot"] is not None, "前置条件：预检应写入快照"
+
+    response = client.post(f"{PREFIX}/batches/{batch['id']}/parse")
+    assert response.status_code == 200, response.text
+
+    reparsed = client.get(f"{PREFIX}/batches/{batch['id']}").json()["data"]
+    assert reparsed["status"] == "mapped_pending"
+    assert reparsed["total_rows"] == 669, "行数按最新解析结果重算"
+    assert reparsed["new_count"] == 0, "预检计数必须归零，否则用户会看到上一轮的残留数字"
+    assert reparsed["dup_count"] == 0
+    assert reparsed["pending_count"] == 0
+    assert reparsed["mapping_snapshot"] is None, "旧快照必须作废（D-5：快照只在预检时有效）"
+
+
+def test_blank_data_rows_are_skipped_and_explained(
+    client: TestClient, upload, tmp_path: Path
+) -> None:
+    """验收 #10：数据区空行 → `empty_rows_skipped>0`，且行数之差可解释。
+
+    「可解释」= 物理数据行数 − 空行数 = `total_rows`。只断言真实样例的 `== 0`
+    等于没测：那条分支（`base.iter_rows` 的 `empty_rows_skipped += 1`）从未被执行。
+    """
+    target = tmp_path / "bank_with_blank_rows.csv"
+    target.write_text(
+        "交易时间,交易对方,商品,收/支,金额\n"
+        "2026-10-01 10:00:00,某便利店,矿泉水,支出,12.30\n"
+        ",,,,\n"
+        "2026-10-01 10:00:02,某便利店,面包,支出,8.00\n"
+        "   ,  ,  ,  ,\n"
+        "2026-10-01 10:00:03,某便利店,牛奶,支出,5.50\n",
+        encoding="utf-8",
+    )
+
+    batch = upload(target)
+    assert batch["total_rows"] == 3, "5 个物理数据行中有 2 个空行"
+    assert batch["parse_meta"]["empty_rows_skipped"] == 2
+
+    detail = client.get(f"{PREFIX}/batches/{batch['id']}").json()["data"]
+    assert detail["parse_meta"]["empty_rows_skipped"] == 2, "详情页必须看得见（K8）"
+
+    preview = client.get(f"{PREFIX}/batches/{batch['id']}/preview").json()["data"]
+    assert preview["empty_rows_skipped"] == 2
+    assert len(preview["rows"]) == 3
+    assert [row["row_no"] for row in preview["rows"]] == [1, 3, 5], "行号按物理行，空行也占号"

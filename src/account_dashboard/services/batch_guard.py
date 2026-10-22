@@ -53,7 +53,9 @@ _DISCARDABLE = frozenset(
 )
 
 ALLOWED: dict[tuple[BatchStatus, BatchAction], frozenset[BatchStatus]] = {
-    # 解析：已上传 / 失败重试 / 待确认重解析（映射会被清掉）
+    # 解析：已上传 / 失败重试 / 待确认重解析
+    # 注意：重解析保留 mapped_fields（列没变，不必让用户重映射），
+    # 但预检产物（三项计数 + mapping_snapshot）一律作废 —— 见合稿验收 #7 / D-5
     (BatchStatus.UPLOADED, BatchAction.PARSE): _FAILED_OR_READY,
     (BatchStatus.FAILED, BatchAction.PARSE): _FAILED_OR_READY,
     (BatchStatus.PRECHECKED, BatchAction.PARSE): _FAILED_OR_READY,

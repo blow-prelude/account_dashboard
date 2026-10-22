@@ -157,3 +157,52 @@ def test_mapping_after_precheck_resets_counts(
     assert detail["status"] == "mapped_pending", "映射变更后退回待映射（EX-22 前置防护）"
     assert detail["new_count"] == 0
     assert detail["mapping_snapshot"] is None, "旧快照必须作废，否则 C3 会按旧口径入库"
+
+
+def test_misaligned_spec_raises_issue_counts(
+    client: TestClient, upload, tmp_path: Path
+) -> None:
+    """M5 第 ⑤ 步：故意错位的 spec 必须让 issue 显著上升。
+
+    没有这一步，「映射生效」只是口头承诺 —— 合稿文档点名这是最容易漏测的一条。
+    判据不是"能不能保存"，而是**同一份文件换个 spec，行级 issue 从 0 变成全量**：
+    只有 spec 真的被喂进解析内核，才可能出现这种差异。
+    """
+    target = tmp_path / "bank_five_cols.csv"
+    target.write_text(
+        "交易时间,交易对方,商品,收/支,金额\n"
+        "2026-10-01 10:00:00,某便利店,矿泉水,支出,12.30\n"
+        "2026-10-01 10:00:02,某便利店,面包,支出,8.00\n"
+        "2026-10-01 10:00:03,某便利店,牛奶,支出,5.50\n",
+        encoding="utf-8",
+    )
+    batch = upload(target)
+    batch_id = batch["id"]
+    good = detected_mapping(client, batch_id)
+
+    client.put(f"{PREFIX}/batches/{batch_id}/mapping", json=good)
+    baseline = client.post(f"{PREFIX}/batches/{batch_id}/precheck").json()["data"]
+    assert baseline["summary"] == {"total": 3, "new": 3, "dup": 0, "pending_manual": 0}
+    assert baseline["issues"] == {}, "正确 spec 下三行都不该有解析问题"
+
+    # 错位：时间列指到「商品」、金额列指到「交易对方」—— 三行全部解析不出来
+    wrong = dict(good)
+    wrong["occurred_at"] = good["item"]
+    wrong["amount"] = good["counterparty"]
+    assert wrong != good
+
+    response = client.put(f"{PREFIX}/batches/{batch_id}/mapping", json=wrong)
+    assert response.status_code == 200, response.text
+
+    after = client.post(f"{PREFIX}/batches/{batch_id}/precheck").json()["data"]
+    issues = after["issues"]
+    assert issues.get("TIME_PARSE") == 3, f"错位 spec 应让三行时间全失败：{issues}"
+    assert issues.get("AMOUNT_PARSE") == 3, f"错位 spec 应让三行金额全失败：{issues}"
+    assert after["summary"]["new"] == 0
+    assert after["summary"]["pending_manual"] == 3, "解析不出的行归入待人工，不算 new"
+
+    # 改回正确 spec 必须能恢复 —— 证明右移不是"保存了就回不去"
+    client.put(f"{PREFIX}/batches/{batch_id}/mapping", json=good)
+    restored = client.post(f"{PREFIX}/batches/{batch_id}/precheck").json()["data"]
+    assert restored["issues"] == {}
+    assert restored["summary"] == {"total": 3, "new": 3, "dup": 0, "pending_manual": 0}

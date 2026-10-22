@@ -139,7 +139,11 @@ class StagingRepo:
             params.append(str(expected_from))
         cursor = self._conn.execute(
             "UPDATE staging_batch SET channel = ?, encoding = ?, adapter = ?, header_row_no = ?, "
-            "total_rows = ?, parse_meta = ?, fail_reason = NULL, updated_at = ? "
+            "total_rows = ?, parse_meta = ?, fail_reason = NULL, updated_at = ?, "
+            # 重解析（prechecked → mapped_pending）必须把上一轮预检的产物一并作废：
+            # 计数留着会让用户看到旧数字，快照留着会让 C3 的 replay() 按旧口径入库，
+            # 并绕过「必须先 precheck」这道闸门（合稿验收 #7 / D-5）。
+            "new_count = 0, dup_count = 0, pending_count = 0, mapping_snapshot = NULL "
             f"WHERE {where}",  # noqa: S608 - 占位符拼接，无外部输入
             tuple(params),
         )
