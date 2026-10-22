@@ -13,7 +13,8 @@ from __future__ import annotations
 import sqlite3
 from collections.abc import Sequence
 
-from account_dashboard.limits import FP_QUERY_CHUNK
+# ``IN`` 的参数个数上限随 SQLite 版本变化（旧版本 999），取 500 留一倍余量。
+FP_QUERY_CHUNK = 500
 
 
 class TransactionRepo:

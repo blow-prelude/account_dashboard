@@ -25,8 +25,17 @@ htmlcov/
 # 本地脱敏样例（真实账单副本不入库）
 tests/fixtures/local/
 
+# 用户真实账单原件 —— 含个人信息，任何情况下都不得入库
+微信支付账单流水文件*.xlsx
+支付宝交易明细*.csv
+
+# 运行期临时日志
+.tmp-server.log
+
 
 .vscode/
 .workbuddy/
 .claude/
 .codex/
+# git worktree 工作区（大改动隔离用，见 CLAUDE.md）
+.worktree/

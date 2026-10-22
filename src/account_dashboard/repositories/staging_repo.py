@@ -1,241 +1,270 @@
-"""批次仓储与状态机落地点（C2-B §4.2 / SDD §4.4.4）。
+"""缓冲区批次仓储（SDD §4.4.4）。
 
-三条硬规矩：
+三条纪律：
 
-1. **改状态只能走这里的具名方法**，方法内部先 ``assert_transition`` 再执行
-   ``UPDATE ... WHERE id = ? AND status = ?``（条件更新），业务层无法绕过；
-2. **无物理删除**：批次是审计对象，丢弃只是 ``status='discarded'``；
-3. JSON 字段（``mapped_fields`` / ``parse_meta`` / ``report_json``）读写必须无损 ——
-   ``json.loads`` 失败时返回 ``None`` 并记 WARN，绝不让脏数据把接口打成 500。
+* **无物理删除** —— 批次是审计对象，丢弃只改状态（``discarded``）；
+* **状态写入必须带 ``expected_from``** —— 条件更新是并发/重试的唯一防线（C3 的幂等闸门同源）；
+* SQL 全参数化，列名白名单写死。
 """
 
 from __future__ import annotations
 
-import json
 import sqlite3
+from dataclasses import dataclass
 from typing import Any
-from uuid import uuid4
 
-from account_dashboard.errors import BusinessRuleError, ErrorCode
 from account_dashboard.infra.clock import now_iso
-from account_dashboard.infra.logger import get_logger
-from account_dashboard.models.staging import assert_transition
+from account_dashboard.models.enums import BatchStatus, Channel
 
-_logger = get_logger("staging_repo")
-
-_COLUMNS = (
-    "id, file_name, stored_name, file_size, channel, status, total_rows, new_count, "
-    "dup_count, pending_count, encoding, adapter, header_row_no, mapped_fields, "
-    "mapping_snapshot, parse_meta, report_json, pending_delete_flag, deleted_at, "
-    "fail_reason, ingest_started_at, committed_at, created_at, updated_at"
+_BATCH_COLUMNS = (
+    "id, file_name, stored_name, file_size, channel, status, total_rows, new_count, dup_count, "
+    "pending_count, encoding, adapter, header_row_no, mapped_fields, mapping_snapshot, "
+    "parse_meta, report_json, fail_reason, created_at, updated_at"
 )
 
-# 排序白名单：主键 + 同秒批次的稳定次序（created_at 只到秒，批量上传必然撞车）
-_ALLOWED_SORTS = {
-    "created_at": "created_at ASC, rowid ASC",
-    "-created_at": "created_at DESC, rowid DESC",
-}
 
+@dataclass(frozen=True, slots=True)
+class BatchRow:
+    id: str
+    file_name: str
+    stored_name: str
+    file_size: int
+    channel: str
+    status: str
+    total_rows: int
+    new_count: int
+    dup_count: int
+    pending_count: int
+    encoding: str | None
+    adapter: str | None
+    header_row_no: int | None
+    mapped_fields: str | None
+    mapping_snapshot: str | None
+    parse_meta: str | None
+    report_json: str | None
+    fail_reason: str | None
+    created_at: str
+    updated_at: str
 
-def _loads(value: Any) -> Any:
-    if value is None or value == "":
-        return None
-    try:
-        return json.loads(value)
-    except (TypeError, ValueError) as exc:
-        _logger.warning("批次 JSON 字段损坏，已按 None 处理：%s", exc)
-        return None
+    @property
+    def status_enum(self) -> BatchStatus:
+        return BatchStatus(self.status)
 
-
-def _dumps(value: Any) -> str:
-    return json.dumps(value, ensure_ascii=False, sort_keys=True)
-
-
-def _to_dict(row: sqlite3.Row) -> dict[str, Any]:
-    data = dict(row)
-    for key in ("mapped_fields", "mapping_snapshot", "parse_meta", "report_json"):
-        if key in data:
-            data[key] = _loads(data[key])
-    return data
+    @property
+    def channel_enum(self) -> Channel:
+        return Channel(self.channel)
 
 
 class StagingRepo:
     def __init__(self, conn: sqlite3.Connection) -> None:
         self._conn = conn
 
-    # ── 读 ────────────────────────────────────────────────────
-    def get(self, batch_id: str) -> dict[str, Any] | None:
-        row = self._conn.execute(
-            f"SELECT {_COLUMNS} FROM staging_batch WHERE id = ?", (batch_id,)
-        ).fetchone()
-        return _to_dict(row) if row is not None else None
-
-    def get_or_raise(self, batch_id: str) -> dict[str, Any]:
-        batch = self.get(batch_id)
-        if batch is None:
-            raise BusinessRuleError(
-                ErrorCode.BATCH_NOT_FOUND,
-                "找不到该批次，可能已被清理，请刷新列表",
-                detail={"batch_id": batch_id},
-            )
-        return batch
-
-    def list(
-        self,
-        *,
-        status: str | None = None,
-        page: int = 1,
-        page_size: int = 50,
-        sort: str = "-created_at",
-    ) -> tuple[list[dict[str, Any]], int]:
-        order = _ALLOWED_SORTS.get(sort, _ALLOWED_SORTS["-created_at"])
-        where = "WHERE status = ?" if status else ""
-        params: list[Any] = [status] if status else []
-
-        total = self._conn.execute(
-            f"SELECT COUNT(*) FROM staging_batch {where}", params
-        ).fetchone()[0]
-        rows = self._conn.execute(
-            f"SELECT {_COLUMNS} FROM staging_batch {where} ORDER BY {order}, rowid DESC "
-            "LIMIT ? OFFSET ?",
-            [*params, page_size, (page - 1) * page_size],
-        ).fetchall()
-        return [_to_dict(row) for row in rows], int(total)
-
-    def stored_names(self) -> set[str]:
-        rows = self._conn.execute("SELECT stored_name FROM staging_batch").fetchall()
-        return {str(row[0]) for row in rows}
-
-    def count_by_status(self) -> dict[str, int]:
-        rows = self._conn.execute(
-            "SELECT status, COUNT(*) FROM staging_batch GROUP BY status"
-        ).fetchall()
-        return {str(row[0]): int(row[1]) for row in rows}
-
-    # ── 写（全部经状态机）────────────────────────────────────
+    # ── 写 ────────────────────────────────────────────────────
     def create(
         self,
         *,
+        batch_id: str,
         file_name: str,
         stored_name: str,
         file_size: int,
-        channel: str = "other",
-        batch_id: str | None = None,
-    ) -> dict[str, Any]:
-        now = now_iso()
-        new_id = batch_id or uuid4().hex
+        channel: Channel,
+        created_at: str | None = None,
+    ) -> None:
+        stamp = created_at or now_iso()
         self._conn.execute(
-            "INSERT INTO staging_batch (id, file_name, stored_name, file_size, channel, "
-            "status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 'uploaded', ?, ?)",
-            (new_id, file_name, stored_name, file_size, channel, now, now),
+            "INSERT INTO staging_batch(id, file_name, stored_name, file_size, channel, status, "
+            "created_at, updated_at) VALUES (?,?,?,?,?,?,?,?)",
+            (
+                batch_id,
+                file_name,
+                stored_name,
+                file_size,
+                str(channel),
+                str(BatchStatus.UPLOADED),
+                stamp,
+                stamp,
+            ),
         )
-        return self.get_or_raise(new_id)
 
-    def mark_parsed(
+    def set_status(
         self,
         batch_id: str,
         *,
+        to: BatchStatus,
+        expected_from: BatchStatus | None = None,
+        reason: str | None = None,
+    ) -> int:
+        """条件状态更新；返回受影响行数（0 表示状态不符或批次不存在）。"""
+        sets = ["status = ?", "updated_at = ?"]
+        params: list[Any] = [str(to), now_iso()]
+        if reason is not None:
+            sets.append("fail_reason = ?")
+            params.append(reason)
+        where = "id = ?"
+        params.append(batch_id)
+        if expected_from is not None:
+            where += " AND status = ?"
+            params.append(str(expected_from))
+        cursor = self._conn.execute(
+            f"UPDATE staging_batch SET {', '.join(sets)} WHERE {where}",  # noqa: S608 - 列名固定
+            tuple(params),
+        )
+        return cursor.rowcount
+
+    def update_after_parse(
+        self,
+        batch_id: str,
+        *,
+        channel: Channel,
         encoding: str,
         adapter: str,
         header_row_no: int,
-        parse_meta: dict[str, Any],
         total_rows: int,
-        channel: str | None = None,
-    ) -> dict[str, Any]:
-        values: dict[str, Any] = {
-            "encoding": encoding,
-            "adapter": adapter,
-            "header_row_no": header_row_no,
-            "parse_meta": _dumps(parse_meta),
-            "total_rows": total_rows,
-            "fail_reason": None,
-        }
-        current = self.get_or_raise(batch_id)
-        if channel and current["channel"] == "other":
-            # 用户没指定渠道时，采用适配器识别出的渠道（wechat/alipay/bank）
-            values["channel"] = channel
-        return self._apply(batch_id, action="parse", target="mapped_pending", values=values)
-
-    def mark_parse_failed(self, batch_id: str, *, fail_reason: str) -> dict[str, Any]:
-        return self._apply(
+        parse_meta: str,
+        expected_from: BatchStatus | None = None,
+    ) -> int:
+        where = "id = ?"
+        params: list[Any] = [
+            str(channel),
+            encoding,
+            adapter,
+            header_row_no,
+            total_rows,
+            parse_meta,
+            now_iso(),
             batch_id,
-            action="parse",
-            target="failed",
-            values={"fail_reason": fail_reason[:500]},
+        ]
+        if expected_from is not None:
+            where += " AND status = ?"
+            params.append(str(expected_from))
+        cursor = self._conn.execute(
+            "UPDATE staging_batch SET channel = ?, encoding = ?, adapter = ?, header_row_no = ?, "
+            "total_rows = ?, parse_meta = ?, fail_reason = NULL, updated_at = ? "
+            f"WHERE {where}",  # noqa: S608 - 占位符拼接，无外部输入
+            tuple(params),
         )
+        return cursor.rowcount
 
-    def mark_mapped(self, batch_id: str, *, mapped_fields: dict[str, Any]) -> dict[str, Any]:
-        # D-1：映射保存成功即视为"映射已确认"，直接进入 prechecked
-        return self._apply(
-            batch_id,
-            action="map",
-            target="prechecked",
-            values={"mapped_fields": _dumps(mapped_fields)},
+    def update_mapping(
+        self,
+        batch_id: str,
+        *,
+        mapped_fields: str,
+        channel: Channel | None = None,
+        header_row_no: int | None = None,
+        expected_status: BatchStatus | None = None,
+    ) -> int:
+        sets = ["mapped_fields = ?", "updated_at = ?"]
+        params: list[Any] = [mapped_fields, now_iso()]
+        if channel is not None:
+            sets.append("channel = ?")
+            params.append(str(channel))
+        if header_row_no is not None:
+            sets.append("header_row_no = ?")
+            params.append(header_row_no)
+        where = "id = ?"
+        params.append(batch_id)
+        if expected_status is not None:
+            where += " AND status = ?"
+            params.append(str(expected_status))
+        cursor = self._conn.execute(
+            f"UPDATE staging_batch SET {', '.join(sets)} WHERE {where}",  # noqa: S608
+            tuple(params),
         )
+        return cursor.rowcount
 
-    def mark_prechecked(
+    def reset_precheck(self, batch_id: str, *, status: BatchStatus) -> int:
+        """映射变更后清空预检结果（EX-22 的前置防护）：计数归零、快照作废。"""
+        cursor = self._conn.execute(
+            "UPDATE staging_batch SET new_count = 0, dup_count = 0, pending_count = 0, "
+            "mapping_snapshot = NULL, status = ?, updated_at = ? WHERE id = ?",
+            (str(status), now_iso(), batch_id),
+        )
+        return cursor.rowcount
+
+    def update_precheck(
         self,
         batch_id: str,
         *,
         new_count: int,
         dup_count: int,
         pending_count: int,
-    ) -> dict[str, Any]:
-        """预检结果缓存；``total_rows`` 刻意不改（预检前后必须相等，I-PC-01）。"""
-        return self._apply(
-            batch_id,
-            action="precheck",
-            target="prechecked",
-            values={
-                "new_count": new_count,
-                "dup_count": dup_count,
-                "pending_count": pending_count,
-            },
-        )
-
-    def mark_discarded(self, batch_id: str) -> dict[str, Any]:
-        return self._apply(
-            batch_id, action="discard", target="discarded", values={"deleted_at": now_iso()}
-        )
-
-    def mark_pending_delete(self, batch_id: str) -> None:
-        """C3 在入库事务内落"待删除意图"（I9）；C2 不调用，仅留签名。"""
-        self._conn.execute(
-            "UPDATE staging_batch SET pending_delete_flag = 1, updated_at = ? WHERE id = ?",
-            (now_iso(), batch_id),
-        )
-
-    def clear_pending_delete(self, batch_id: str) -> None:
-        self._conn.execute(
-            "UPDATE staging_batch SET pending_delete_flag = 0, updated_at = ? WHERE id = ?",
-            (now_iso(), batch_id),
-        )
-
-    def finish_ingest(self, batch_id: str, **_kwargs: Any) -> None:
-        """由 C3 实现（C2 只留签名，见 C2-B §5.2）。"""
-        raise NotImplementedError("finish_ingest 由 C3（入库事务）实现")
-
-    # ── 内部 ──────────────────────────────────────────────────
-    def _apply(
-        self, batch_id: str, *, action: str, target: str, values: dict[str, Any]
-    ) -> dict[str, Any]:
-        current = self.get_or_raise(batch_id)
-        assert_transition(current["status"], action, target)
-
-        assignments: dict[str, Any] = {"status": target, "updated_at": now_iso(), **values}
-        columns = ", ".join(f"{column} = ?" for column in assignments)
+        mapping_snapshot: str,
+        status: BatchStatus = BatchStatus.PRECHECKED,
+    ) -> int:
         cursor = self._conn.execute(
-            f"UPDATE staging_batch SET {columns} WHERE id = ? AND status = ?",
-            (*assignments.values(), batch_id, current["status"]),
+            "UPDATE staging_batch SET new_count = ?, dup_count = ?, pending_count = ?, "
+            "mapping_snapshot = ?, status = ?, updated_at = ? WHERE id = ?",
+            (
+                new_count,
+                dup_count,
+                pending_count,
+                mapping_snapshot,
+                str(status),
+                now_iso(),
+                batch_id,
+            ),
         )
-        if cursor.rowcount != 1:
-            # 理论上不会发生（BEGIN IMMEDIATE 已串行化），留着防"事务外调用"的误用
-            raise BusinessRuleError(
-                ErrorCode.BATCH_STATE_CONFLICT,
-                "批次状态已变化，请刷新后重试",
-                detail={"batch_id": batch_id},
-            )
-        return self.get_or_raise(batch_id)
+        return cursor.rowcount
+
+    # ── 读 ────────────────────────────────────────────────────
+    def get(self, batch_id: str) -> BatchRow | None:
+        row = self._conn.execute(
+            f"SELECT {_BATCH_COLUMNS} FROM staging_batch WHERE id = ?", (batch_id,)
+        ).fetchone()
+        return _to_row(row)
+
+    def list(
+        self,
+        *,
+        status: BatchStatus | None = None,
+        page: int = 1,
+        page_size: int = 50,
+    ) -> tuple[list[BatchRow], int]:
+        where = ""
+        params: list[Any] = []
+        if status is not None:
+            where = " WHERE status = ?"
+            params.append(str(status))
+        total_row = self._conn.execute(
+            f"SELECT COUNT(*) AS n FROM staging_batch{where}",  # noqa: S608
+            tuple(params),
+        ).fetchone()
+        total = int(total_row["n"]) if total_row is not None else 0
+        rows = self._conn.execute(
+            f"SELECT {_BATCH_COLUMNS} FROM staging_batch{where} "  # noqa: S608
+            "ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?",
+            (*params, page_size, (page - 1) * page_size),
+        ).fetchall()
+        return [record for row in rows if (record := _to_row(row)) is not None], total
+
+    def known_stored_names(self) -> set[str]:
+        rows = self._conn.execute("SELECT stored_name FROM staging_batch").fetchall()
+        return {str(row["stored_name"]) for row in rows}
 
 
-__all__ = ["StagingRepo"]
+def _to_row(row: sqlite3.Row | None) -> BatchRow | None:
+    if row is None:
+        return None
+    return BatchRow(
+        id=str(row["id"]),
+        file_name=str(row["file_name"]),
+        stored_name=str(row["stored_name"]),
+        file_size=int(row["file_size"]),
+        channel=str(row["channel"]),
+        status=str(row["status"]),
+        total_rows=int(row["total_rows"]),
+        new_count=int(row["new_count"]),
+        dup_count=int(row["dup_count"]),
+        pending_count=int(row["pending_count"]),
+        encoding=row["encoding"],
+        adapter=row["adapter"],
+        header_row_no=row["header_row_no"],
+        mapped_fields=row["mapped_fields"],
+        mapping_snapshot=row["mapping_snapshot"],
+        parse_meta=row["parse_meta"],
+        report_json=row["report_json"],
+        fail_reason=row["fail_reason"],
+        created_at=str(row["created_at"]),
+        updated_at=str(row["updated_at"]),
+    )

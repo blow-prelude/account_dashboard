@@ -1,6 +1,84 @@
 {
   "components": {
     "schemas": {
+      "ApiResponse_BatchDetailDTO_": {
+        "properties": {
+          "code": {
+            "default": "OK",
+            "title": "Code",
+            "type": "string"
+          },
+          "data": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BatchDetailDTO"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "message": {
+            "default": "",
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "title": "ApiResponse[BatchDetailDTO]",
+        "type": "object"
+      },
+      "ApiResponse_BufferUsageDTO_": {
+        "properties": {
+          "code": {
+            "default": "OK",
+            "title": "Code",
+            "type": "string"
+          },
+          "data": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BufferUsageDTO"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "message": {
+            "default": "",
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "title": "ApiResponse[BufferUsageDTO]",
+        "type": "object"
+      },
+      "ApiResponse_EnsureDirDTO_": {
+        "properties": {
+          "code": {
+            "default": "OK",
+            "title": "Code",
+            "type": "string"
+          },
+          "data": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EnsureDirDTO"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "message": {
+            "default": "",
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "title": "ApiResponse[EnsureDirDTO]",
+        "type": "object"
+      },
       "ApiResponse_HealthDTO_": {
         "properties": {
           "code": {
@@ -27,6 +105,274 @@
         "title": "ApiResponse[HealthDTO]",
         "type": "object"
       },
+      "ApiResponse_MappingResultDTO_": {
+        "properties": {
+          "code": {
+            "default": "OK",
+            "title": "Code",
+            "type": "string"
+          },
+          "data": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MappingResultDTO"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "message": {
+            "default": "",
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "title": "ApiResponse[MappingResultDTO]",
+        "type": "object"
+      },
+      "ApiResponse_OverrideDTO_": {
+        "properties": {
+          "code": {
+            "default": "OK",
+            "title": "Code",
+            "type": "string"
+          },
+          "data": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OverrideDTO"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "message": {
+            "default": "",
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "title": "ApiResponse[OverrideDTO]",
+        "type": "object"
+      },
+      "ApiResponse_Page_BatchDTO__": {
+        "properties": {
+          "code": {
+            "default": "OK",
+            "title": "Code",
+            "type": "string"
+          },
+          "data": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Page_BatchDTO_"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "message": {
+            "default": "",
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "title": "ApiResponse[Page[BatchDTO]]",
+        "type": "object"
+      },
+      "ApiResponse_ParseResultDTO_": {
+        "properties": {
+          "code": {
+            "default": "OK",
+            "title": "Code",
+            "type": "string"
+          },
+          "data": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ParseResultDTO"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "message": {
+            "default": "",
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "title": "ApiResponse[ParseResultDTO]",
+        "type": "object"
+      },
+      "ApiResponse_PrecheckResultDTO_": {
+        "properties": {
+          "code": {
+            "default": "OK",
+            "title": "Code",
+            "type": "string"
+          },
+          "data": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PrecheckResultDTO"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "message": {
+            "default": "",
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "title": "ApiResponse[PrecheckResultDTO]",
+        "type": "object"
+      },
+      "ApiResponse_PreviewDTO_": {
+        "properties": {
+          "code": {
+            "default": "OK",
+            "title": "Code",
+            "type": "string"
+          },
+          "data": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PreviewDTO"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "message": {
+            "default": "",
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "title": "ApiResponse[PreviewDTO]",
+        "type": "object"
+      },
+      "ApiResponse_RemovedDTO_": {
+        "properties": {
+          "code": {
+            "default": "OK",
+            "title": "Code",
+            "type": "string"
+          },
+          "data": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RemovedDTO"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "message": {
+            "default": "",
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "title": "ApiResponse[RemovedDTO]",
+        "type": "object"
+      },
+      "ApiResponse_TemplateDTO_": {
+        "properties": {
+          "code": {
+            "default": "OK",
+            "title": "Code",
+            "type": "string"
+          },
+          "data": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TemplateDTO"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "message": {
+            "default": "",
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "title": "ApiResponse[TemplateDTO]",
+        "type": "object"
+      },
+      "ApiResponse_list_OrphanFileDTO__": {
+        "properties": {
+          "code": {
+            "default": "OK",
+            "title": "Code",
+            "type": "string"
+          },
+          "data": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/OrphanFileDTO"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Data"
+          },
+          "message": {
+            "default": "",
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "title": "ApiResponse[list[OrphanFileDTO]]",
+        "type": "object"
+      },
+      "ApiResponse_list_TemplateDTO__": {
+        "properties": {
+          "code": {
+            "default": "OK",
+            "title": "Code",
+            "type": "string"
+          },
+          "data": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/TemplateDTO"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Data"
+          },
+          "message": {
+            "default": "",
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "title": "ApiResponse[list[TemplateDTO]]",
+        "type": "object"
+      },
       "BacklogDTO": {
         "description": "启动/运行期积压：待清理队列与孤儿文件。",
         "properties": {
@@ -42,6 +388,390 @@
           }
         },
         "title": "BacklogDTO",
+        "type": "object"
+      },
+      "BatchDTO": {
+        "properties": {
+          "adapter": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Adapter"
+          },
+          "channel": {
+            "$ref": "#/components/schemas/Channel"
+          },
+          "created_at": {
+            "title": "Created At",
+            "type": "string"
+          },
+          "dup_count": {
+            "default": 0,
+            "title": "Dup Count",
+            "type": "integer"
+          },
+          "encoding": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Encoding"
+          },
+          "fail_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fail Reason"
+          },
+          "file_name": {
+            "title": "File Name",
+            "type": "string"
+          },
+          "file_size": {
+            "title": "File Size",
+            "type": "integer"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "new_count": {
+            "default": 0,
+            "title": "New Count",
+            "type": "integer"
+          },
+          "pending_count": {
+            "default": 0,
+            "title": "Pending Count",
+            "type": "integer"
+          },
+          "status": {
+            "$ref": "#/components/schemas/BatchStatus"
+          },
+          "total_rows": {
+            "default": 0,
+            "title": "Total Rows",
+            "type": "integer"
+          },
+          "updated_at": {
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "file_name",
+          "file_size",
+          "channel",
+          "status",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "BatchDTO",
+        "type": "object"
+      },
+      "BatchDetailDTO": {
+        "properties": {
+          "adapter": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Adapter"
+          },
+          "channel": {
+            "$ref": "#/components/schemas/Channel"
+          },
+          "created_at": {
+            "title": "Created At",
+            "type": "string"
+          },
+          "dup_count": {
+            "default": 0,
+            "title": "Dup Count",
+            "type": "integer"
+          },
+          "encoding": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Encoding"
+          },
+          "fail_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fail Reason"
+          },
+          "file_exists": {
+            "default": false,
+            "title": "File Exists",
+            "type": "boolean"
+          },
+          "file_name": {
+            "title": "File Name",
+            "type": "string"
+          },
+          "file_size": {
+            "title": "File Size",
+            "type": "integer"
+          },
+          "header_row_no": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Header Row No"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "mapped_fields": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MappingReq"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "mapping_snapshot": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mapping Snapshot"
+          },
+          "new_count": {
+            "default": 0,
+            "title": "New Count",
+            "type": "integer"
+          },
+          "parse_meta": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ParseMetaDTO"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "pending_count": {
+            "default": 0,
+            "title": "Pending Count",
+            "type": "integer"
+          },
+          "status": {
+            "$ref": "#/components/schemas/BatchStatus"
+          },
+          "total_rows": {
+            "default": 0,
+            "title": "Total Rows",
+            "type": "integer"
+          },
+          "updated_at": {
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "file_name",
+          "file_size",
+          "channel",
+          "status",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "BatchDetailDTO",
+        "type": "object"
+      },
+      "BatchStatus": {
+        "description": "批次 7 态（SDD §5.6）。故意不含「待上传」。",
+        "enum": [
+          "uploaded",
+          "mapped_pending",
+          "prechecked",
+          "ingesting",
+          "ingested",
+          "discarded",
+          "failed"
+        ],
+        "title": "BatchStatus",
+        "type": "string"
+      },
+      "Body_create_batch_api_v1_staging_batches_post": {
+        "properties": {
+          "channel": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Channel"
+          },
+          "file": {
+            "contentMediaType": "application/octet-stream",
+            "title": "File",
+            "type": "string"
+          }
+        },
+        "required": [
+          "file"
+        ],
+        "title": "Body_create_batch_api_v1_staging_batches_post",
+        "type": "object"
+      },
+      "BufferUsageDTO": {
+        "properties": {
+          "exceeded": {
+            "default": false,
+            "title": "Exceeded",
+            "type": "boolean"
+          },
+          "file_count": {
+            "default": 0,
+            "title": "File Count",
+            "type": "integer"
+          },
+          "oldest_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Oldest At"
+          },
+          "threshold_bytes": {
+            "default": 0,
+            "title": "Threshold Bytes",
+            "type": "integer"
+          },
+          "total_bytes": {
+            "default": 0,
+            "title": "Total Bytes",
+            "type": "integer"
+          }
+        },
+        "title": "BufferUsageDTO",
+        "type": "object"
+      },
+      "Channel": {
+        "enum": [
+          "wechat",
+          "alipay",
+          "bank",
+          "other"
+        ],
+        "title": "Channel",
+        "type": "string"
+      },
+      "DedupLabel": {
+        "enum": [
+          "new",
+          "dup",
+          "pending_manual"
+        ],
+        "title": "DedupLabel",
+        "type": "string"
+      },
+      "Direction": {
+        "description": "收支方向（I1）。\n\n``neutral`` 是「不计收支」的合法语义（微信 ``/``、支付宝 ``不计收支``），\n既不是空值也不是未知值 —— 它参与存储，但不进统计。",
+        "enum": [
+          "income",
+          "expense",
+          "neutral"
+        ],
+        "title": "Direction",
+        "type": "string"
+      },
+      "DiscardReq": {
+        "description": "丢弃需要二次确认（SDD §6.2.2）。",
+        "properties": {
+          "confirm": {
+            "default": false,
+            "title": "Confirm",
+            "type": "boolean"
+          }
+        },
+        "title": "DiscardReq",
+        "type": "object"
+      },
+      "EnsureDirDTO": {
+        "properties": {
+          "created": {
+            "default": false,
+            "title": "Created",
+            "type": "boolean"
+          },
+          "path": {
+            "title": "Path",
+            "type": "string"
+          }
+        },
+        "required": [
+          "path"
+        ],
+        "title": "EnsureDirDTO",
+        "type": "object"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "title": "HTTPValidationError",
         "type": "object"
       },
       "HealthDTO": {
@@ -75,6 +805,927 @@
         ],
         "title": "HealthDTO",
         "type": "object"
+      },
+      "MappingReq": {
+        "description": "列索引映射；``-1`` 或 ``None`` 表示未映射。\n\n``amount_scale`` 语义：``1`` 表示原始列单位是**元**（默认），\n``100`` 表示原始列单位是**分**（个别银行导出如此）。",
+        "properties": {
+          "amount": {
+            "default": -1,
+            "title": "Amount",
+            "type": "integer"
+          },
+          "amount_scale": {
+            "default": 1,
+            "title": "Amount Scale",
+            "type": "integer"
+          },
+          "counterparty": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Counterparty"
+          },
+          "direction": {
+            "default": -1,
+            "title": "Direction",
+            "type": "integer"
+          },
+          "direction_map": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/Direction"
+            },
+            "title": "Direction Map",
+            "type": "object"
+          },
+          "item": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Item"
+          },
+          "occurred_at": {
+            "default": -1,
+            "title": "Occurred At",
+            "type": "integer"
+          },
+          "payment_method": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Payment Method"
+          },
+          "platform_category": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Platform Category"
+          },
+          "platform_status": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Platform Status"
+          },
+          "save_template": {
+            "default": false,
+            "title": "Save Template",
+            "type": "boolean"
+          },
+          "template_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Template Name"
+          },
+          "template_policy": {
+            "default": "abort",
+            "enum": [
+              "abort",
+              "overwrite",
+              "save_as"
+            ],
+            "title": "Template Policy",
+            "type": "string"
+          },
+          "txn_type": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Txn Type"
+          }
+        },
+        "title": "MappingReq",
+        "type": "object"
+      },
+      "MappingResultDTO": {
+        "properties": {
+          "batch_id": {
+            "title": "Batch Id",
+            "type": "string"
+          },
+          "columns": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Columns",
+            "type": "array"
+          },
+          "mapping": {
+            "$ref": "#/components/schemas/MappingReq"
+          },
+          "status": {
+            "$ref": "#/components/schemas/BatchStatus"
+          },
+          "template_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Template Id"
+          }
+        },
+        "required": [
+          "batch_id",
+          "mapping",
+          "status"
+        ],
+        "title": "MappingResultDTO",
+        "type": "object"
+      },
+      "OrphanFileDTO": {
+        "properties": {
+          "modified_at": {
+            "title": "Modified At",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "size_bytes": {
+            "title": "Size Bytes",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "name",
+          "size_bytes",
+          "modified_at"
+        ],
+        "title": "OrphanFileDTO",
+        "type": "object"
+      },
+      "OverrideDTO": {
+        "properties": {
+          "batch_id": {
+            "title": "Batch Id",
+            "type": "string"
+          },
+          "created_at": {
+            "title": "Created At",
+            "type": "string"
+          },
+          "note": {
+            "default": "",
+            "title": "Note",
+            "type": "string"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "row_no": {
+            "title": "Row No",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "batch_id",
+          "row_no",
+          "reason",
+          "created_at"
+        ],
+        "title": "OverrideDTO",
+        "type": "object"
+      },
+      "OverrideReq": {
+        "properties": {
+          "note": {
+            "default": "",
+            "title": "Note",
+            "type": "string"
+          },
+          "reason": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Reason",
+            "type": "string"
+          },
+          "row_no": {
+            "title": "Row No",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "row_no",
+          "reason"
+        ],
+        "title": "OverrideReq",
+        "type": "object"
+      },
+      "PageMeta": {
+        "properties": {
+          "page": {
+            "default": 1,
+            "title": "Page",
+            "type": "integer"
+          },
+          "page_size": {
+            "default": 50,
+            "title": "Page Size",
+            "type": "integer"
+          },
+          "total": {
+            "default": 0,
+            "title": "Total",
+            "type": "integer"
+          },
+          "total_pages": {
+            "default": 0,
+            "title": "Total Pages",
+            "type": "integer"
+          }
+        },
+        "title": "PageMeta",
+        "type": "object"
+      },
+      "Page_BatchDTO_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/BatchDTO"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/PageMeta"
+          }
+        },
+        "title": "Page[BatchDTO]",
+        "type": "object"
+      },
+      "ParseInfoDTO": {
+        "description": "解析结果的「本轮」摘要（不落库，随 parse 响应返回）。",
+        "properties": {
+          "adapter": {
+            "title": "Adapter",
+            "type": "string"
+          },
+          "columns": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Columns",
+            "type": "array"
+          },
+          "empty_rows_skipped": {
+            "default": 0,
+            "title": "Empty Rows Skipped",
+            "type": "integer"
+          },
+          "encoding": {
+            "title": "Encoding",
+            "type": "string"
+          },
+          "header_row_no": {
+            "title": "Header Row No",
+            "type": "integer"
+          },
+          "issues": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Issues",
+            "type": "object"
+          },
+          "total_rows": {
+            "title": "Total Rows",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "adapter",
+          "encoding",
+          "header_row_no",
+          "total_rows"
+        ],
+        "title": "ParseInfoDTO",
+        "type": "object"
+      },
+      "ParseIssueDTO": {
+        "description": "行级问题（EX-06/07）。",
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "field": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Field"
+          },
+          "raw_value": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Raw Value"
+          },
+          "row_no": {
+            "title": "Row No",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "code",
+          "row_no"
+        ],
+        "title": "ParseIssueDTO",
+        "type": "object"
+      },
+      "ParseMetaDTO": {
+        "description": "解析元信息：用于回答「为什么行数和平台报的不一样」。",
+        "properties": {
+          "column_count": {
+            "default": 0,
+            "title": "Column Count",
+            "type": "integer"
+          },
+          "columns": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Columns",
+            "type": "array"
+          },
+          "delimiter": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Delimiter"
+          },
+          "empty_rows_skipped": {
+            "default": 0,
+            "title": "Empty Rows Skipped",
+            "type": "integer"
+          },
+          "header_row_no": {
+            "default": 0,
+            "title": "Header Row No",
+            "type": "integer"
+          },
+          "issues": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Issues",
+            "type": "object"
+          },
+          "preamble_rows": {
+            "default": 0,
+            "title": "Preamble Rows",
+            "type": "integer"
+          },
+          "sheet": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sheet"
+          }
+        },
+        "title": "ParseMetaDTO",
+        "type": "object"
+      },
+      "ParseResultDTO": {
+        "description": "``POST /batches/{id}/parse`` 的载荷：批次快照 + 本轮解析摘要。",
+        "properties": {
+          "batch": {
+            "$ref": "#/components/schemas/BatchDTO"
+          },
+          "parse": {
+            "$ref": "#/components/schemas/ParseInfoDTO"
+          }
+        },
+        "required": [
+          "batch",
+          "parse"
+        ],
+        "title": "ParseResultDTO",
+        "type": "object"
+      },
+      "PrecheckResultDTO": {
+        "properties": {
+          "batch_id": {
+            "title": "Batch Id",
+            "type": "string"
+          },
+          "issues": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Issues",
+            "type": "object"
+          },
+          "message": {
+            "default": "",
+            "title": "Message",
+            "type": "string"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/PrecheckRowDTO"
+            },
+            "title": "Rows",
+            "type": "array"
+          },
+          "snapshot_at": {
+            "title": "Snapshot At",
+            "type": "string"
+          },
+          "summary": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Summary",
+            "type": "object"
+          }
+        },
+        "required": [
+          "batch_id",
+          "snapshot_at"
+        ],
+        "title": "PrecheckResultDTO",
+        "type": "object"
+      },
+      "PrecheckRowDTO": {
+        "properties": {
+          "amount_cents": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amount Cents"
+          },
+          "counterparty": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Counterparty"
+          },
+          "direction": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Direction"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "fingerprint": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fingerprint"
+          },
+          "issues": {
+            "items": {
+              "$ref": "#/components/schemas/ParseIssueDTO"
+            },
+            "title": "Issues",
+            "type": "array"
+          },
+          "item": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Item"
+          },
+          "label": {
+            "$ref": "#/components/schemas/DedupLabel"
+          },
+          "occurred_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Occurred At"
+          },
+          "override": {
+            "default": false,
+            "title": "Override",
+            "type": "boolean"
+          },
+          "row_no": {
+            "title": "Row No",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "row_no",
+          "label"
+        ],
+        "title": "PrecheckRowDTO",
+        "type": "object"
+      },
+      "PreviewDTO": {
+        "description": "前 N 行 + 字段识别结果（只读，不落库）。",
+        "properties": {
+          "batch_id": {
+            "title": "Batch Id",
+            "type": "string"
+          },
+          "columns": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Columns",
+            "type": "array"
+          },
+          "detected_fields": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Detected Fields",
+            "type": "object"
+          },
+          "empty_rows_skipped": {
+            "default": 0,
+            "title": "Empty Rows Skipped",
+            "type": "integer"
+          },
+          "header_recognized": {
+            "default": true,
+            "title": "Header Recognized",
+            "type": "boolean"
+          },
+          "header_row_no": {
+            "title": "Header Row No",
+            "type": "integer"
+          },
+          "issues": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Issues",
+            "type": "object"
+          },
+          "limit": {
+            "default": 20,
+            "title": "Limit",
+            "type": "integer"
+          },
+          "message": {
+            "default": "",
+            "title": "Message",
+            "type": "string"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/PreviewRowDTO"
+            },
+            "title": "Rows",
+            "type": "array"
+          },
+          "total_rows": {
+            "default": 0,
+            "title": "Total Rows",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "batch_id",
+          "header_row_no"
+        ],
+        "title": "PreviewDTO",
+        "type": "object"
+      },
+      "PreviewRowDTO": {
+        "properties": {
+          "amount_cents": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amount Cents"
+          },
+          "counterparty": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Counterparty"
+          },
+          "direction": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Direction"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "fingerprint": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fingerprint"
+          },
+          "issues": {
+            "items": {
+              "$ref": "#/components/schemas/ParseIssueDTO"
+            },
+            "title": "Issues",
+            "type": "array"
+          },
+          "item": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Item"
+          },
+          "occurred_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Occurred At"
+          },
+          "payment_method": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Payment Method"
+          },
+          "platform_category": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Platform Category"
+          },
+          "platform_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Platform Status"
+          },
+          "row_no": {
+            "title": "Row No",
+            "type": "integer"
+          },
+          "txn_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Txn Type"
+          }
+        },
+        "required": [
+          "row_no"
+        ],
+        "title": "PreviewRowDTO",
+        "type": "object"
+      },
+      "RemovedDTO": {
+        "properties": {
+          "removed": {
+            "title": "Removed",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "removed"
+        ],
+        "title": "RemovedDTO",
+        "type": "object"
+      },
+      "TemplateDTO": {
+        "properties": {
+          "channel": {
+            "$ref": "#/components/schemas/Channel"
+          },
+          "created_at": {
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "is_default": {
+            "default": false,
+            "title": "Is Default",
+            "type": "boolean"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "spec": {
+            "$ref": "#/components/schemas/MappingReq"
+          },
+          "updated_at": {
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "channel",
+          "name",
+          "spec",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "TemplateDTO",
+        "type": "object"
+      },
+      "TemplateReq": {
+        "properties": {
+          "channel": {
+            "$ref": "#/components/schemas/Channel"
+          },
+          "name": {
+            "default": "默认",
+            "title": "Name",
+            "type": "string"
+          },
+          "policy": {
+            "default": "abort",
+            "enum": [
+              "abort",
+              "overwrite",
+              "save_as"
+            ],
+            "title": "Policy",
+            "type": "string"
+          },
+          "spec": {
+            "$ref": "#/components/schemas/MappingReq"
+          }
+        },
+        "required": [
+          "channel",
+          "spec"
+        ],
+        "title": "TemplateReq",
+        "type": "object"
+      },
+      "ValidationError": {
+        "properties": {
+          "ctx": {
+            "title": "Context",
+            "type": "object"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Location",
+            "type": "array"
+          },
+          "msg": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "title": "Error Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError",
+        "type": "object"
       }
     }
   },
@@ -102,6 +1753,657 @@
         "summary": "Health",
         "tags": [
           "health"
+        ]
+      }
+    },
+    "/api/v1/staging/batches": {
+      "get": {
+        "operationId": "list_batches_api_v1_staging_batches_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "title": "Page",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "title": "Page Size",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_Page_BatchDTO__"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Batches",
+        "tags": [
+          "staging"
+        ]
+      },
+      "post": {
+        "operationId": "create_batch_api_v1_staging_batches_post",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_create_batch_api_v1_staging_batches_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_BatchDetailDTO_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Batch",
+        "tags": [
+          "staging"
+        ]
+      }
+    },
+    "/api/v1/staging/batches/{batch_id}": {
+      "get": {
+        "operationId": "get_batch_api_v1_staging_batches__batch_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "batch_id",
+            "required": true,
+            "schema": {
+              "title": "Batch Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_BatchDetailDTO_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Batch",
+        "tags": [
+          "staging"
+        ]
+      }
+    },
+    "/api/v1/staging/batches/{batch_id}/discard": {
+      "post": {
+        "operationId": "discard_batch_api_v1_staging_batches__batch_id__discard_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "batch_id",
+            "required": true,
+            "schema": {
+              "title": "Batch Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/DiscardReq"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Payload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_BatchDetailDTO_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Discard Batch",
+        "tags": [
+          "staging"
+        ]
+      }
+    },
+    "/api/v1/staging/batches/{batch_id}/mapping": {
+      "put": {
+        "operationId": "save_mapping_api_v1_staging_batches__batch_id__mapping_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "batch_id",
+            "required": true,
+            "schema": {
+              "title": "Batch Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MappingReq"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_MappingResultDTO_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Save Mapping",
+        "tags": [
+          "staging"
+        ]
+      }
+    },
+    "/api/v1/staging/batches/{batch_id}/overrides": {
+      "post": {
+        "operationId": "add_override_api_v1_staging_batches__batch_id__overrides_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "batch_id",
+            "required": true,
+            "schema": {
+              "title": "Batch Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OverrideReq"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_OverrideDTO_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Add Override",
+        "tags": [
+          "staging"
+        ]
+      }
+    },
+    "/api/v1/staging/batches/{batch_id}/overrides/{row_no}": {
+      "delete": {
+        "operationId": "remove_override_api_v1_staging_batches__batch_id__overrides__row_no__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "batch_id",
+            "required": true,
+            "schema": {
+              "title": "Batch Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "row_no",
+            "required": true,
+            "schema": {
+              "title": "Row No",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_RemovedDTO_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Remove Override",
+        "tags": [
+          "staging"
+        ]
+      }
+    },
+    "/api/v1/staging/batches/{batch_id}/parse": {
+      "post": {
+        "operationId": "parse_batch_api_v1_staging_batches__batch_id__parse_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "batch_id",
+            "required": true,
+            "schema": {
+              "title": "Batch Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_ParseResultDTO_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Parse Batch",
+        "tags": [
+          "staging"
+        ]
+      }
+    },
+    "/api/v1/staging/batches/{batch_id}/precheck": {
+      "post": {
+        "operationId": "precheck_batch_api_v1_staging_batches__batch_id__precheck_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "batch_id",
+            "required": true,
+            "schema": {
+              "title": "Batch Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_PrecheckResultDTO_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Precheck Batch",
+        "tags": [
+          "staging"
+        ]
+      }
+    },
+    "/api/v1/staging/batches/{batch_id}/preview": {
+      "get": {
+        "operationId": "preview_batch_api_v1_staging_batches__batch_id__preview_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "batch_id",
+            "required": true,
+            "schema": {
+              "title": "Batch Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_PreviewDTO_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Preview Batch",
+        "tags": [
+          "staging"
+        ]
+      }
+    },
+    "/api/v1/staging/ensure-dir": {
+      "post": {
+        "operationId": "ensure_dir_api_v1_staging_ensure_dir_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_EnsureDirDTO_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Ensure Dir",
+        "tags": [
+          "staging"
+        ]
+      }
+    },
+    "/api/v1/staging/orphans": {
+      "get": {
+        "operationId": "list_orphans_api_v1_staging_orphans_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_list_OrphanFileDTO__"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Orphans",
+        "tags": [
+          "staging"
+        ]
+      }
+    },
+    "/api/v1/staging/templates": {
+      "get": {
+        "operationId": "list_templates_api_v1_staging_templates_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "channel",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Channel"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_list_TemplateDTO__"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Templates",
+        "tags": [
+          "staging"
+        ]
+      },
+      "post": {
+        "operationId": "create_template_api_v1_staging_templates_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TemplateReq"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_TemplateDTO_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Template",
+        "tags": [
+          "staging"
+        ]
+      }
+    },
+    "/api/v1/staging/usage": {
+      "get": {
+        "operationId": "buffer_usage_api_v1_staging_usage_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_BufferUsageDTO_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Buffer Usage",
+        "tags": [
+          "staging"
         ]
       }
     }

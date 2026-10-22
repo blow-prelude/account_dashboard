@@ -20,7 +20,7 @@
 | 冻结点 | 时点 | 对象 | 状态 |
 |--------|------|------|------|
 | FZ-1 | C1 收口 | `ApiResponse`、`PageMeta`、`Page`、`ErrorCode`（37 值）、退出码 1~5、`/health` | **已冻结 v1（2026-10-22）** |
-| FZ-2 | C2 收口 | `BatchDTO`、`BatchDetailDTO`、`ParseMetaDTO`、`MappingReq`、`PrecheckResultDTO`、7 个批次状态 | 待冻结 |
+| FZ-2 | C2 收口 | `BatchDTO`、`BatchDetailDTO`、`ParseMetaDTO`、`MappingReq`、`PrecheckResultDTO`、7 个批次状态 | **已冻结 v1（2026-10-22）** |
 | FZ-3 | C3 收口 | `IngestReportDTO`、`RawRecordDTO`、`raw_YYYY_MM` 列定义、`pending_delete_flag`、7×6 状态矩阵 | 待冻结 |
 | FZ-4 | C4 收口 | 12 指标 DTO、`base_filter` 语义、`period/anchor` 格式、`null` 语义、三入口同源 | 待冻结 |
 
@@ -97,6 +97,49 @@
   - 回归：A 线 `test_cleaning_amount.py`（`scale=100` 分支）。
 - **D-3（不是契约变更，登记备查）**：时间/金额不可解析的行在 C2 只标记 `is_valid=False` + `pending_manual`，**不写 `transaction`**（该表 `occurred_at NOT NULL`）；C3 入库时按 `skipped_invalid` 计入报告。
   - 影响面：C3 的 `IngestReportDTO` 增加 `skipped_invalid` 字段（届时属 ADDITIVE）。
+
+### 2026-10-22 · C2 · ADDITIVE · FZ-2 缓冲区契约冻结 v1
+
+- **对象**：`BatchDTO`、`BatchDetailDTO`、`ParseMetaDTO`、`ParseIssueDTO`、`PreviewDTO`、`MappingReq`、`MappingResultDTO`、`TemplateReq`/`TemplateDTO`、`PrecheckRowDTO`、`PrecheckResultDTO`、`OverrideDTO`、7 个批次状态字面量、15 个 `/api/v1/staging/*` 端点
+- **冻结内容**：
+  - `BatchDTO{id, file_name, file_size, channel, status, total_rows, new_count, dup_count, pending_count, encoding, adapter, fail_reason, created_at, updated_at}`
+  - `BatchDetailDTO = BatchDTO + {header_row_no, mapped_fields: MappingReq, mapping_snapshot: dict, parse_meta: ParseMetaDTO, file_exists}`
+  - `MappingReq` 的 9 个列字段（`-1`/`null` = 未映射）+ `direction_map` + `amount_scale` + 3 个可选模板开关（`save_template` / `template_name` / `template_policy`）
+  - `amount_scale` 语义：**`1` = 原始列为元（默认），`100` = 原始列为分**；其他值 → `E1008`
+  - `PrecheckRowDTO.label ∈ {new, dup, pending_manual}`；`PrecheckResultDTO.summary` 恒含 `total/new/dup/pending_manual` 四键（缺失也返回 0）
+  - 批次状态机：`failed --map--> mapped_pending` 合法（EX-03 手动映射）；`mapped_pending --parse-->` 一律 `E2002`；`ingest`/`confirm` 在 C2 全域非法
+- **新增（不影响既有字段）**：`ParseResultDTO`/`ParseInfoDTO`、`PreviewRowDTO`、`OrphanFileDTO`、`BufferUsageDTO`、`EnsureDirDTO`、`DiscardReq`、`RemovedDTO`
+- **未加入**：`BatchDetailDTO.report` —— 留给 C3 的 `IngestReportDTO` 以新增可选字段加入（现在占位会导致 C3 改类型 = BREAKING）
+- **影响面**：C3 入库/重放、C4 重算、前端导入向导（1 个上传 + 1 个列表 + 13 个动作端点）
+- **回归用例**：`tests/unit/test_batch_state_machine.py`（7×6 全矩阵）、`tests/integration/test_staging_{upload,mapping,precheck,buffer}.py`、`tests/integration/test_real_samples.py`
+- **实施备注**：错误码仍只有 `api/errors.py` 一处枚举；infra 抛 `InfraError`（字符串码），由 `services/error_mapping.py` 翻译，分层门禁未放宽到整层
+
+### 2026-10-22 · C2 · INTERNAL · 分层门禁与半成品后缀口径统一
+
+- **对象**：`tests/integration/test_layering.py`、`infra/buffer_file.PARTIAL_SUFFIXES`
+- **变更前**：`services` 一律禁止 import `api`；`health` / `reconciliation` / `staging/orphans` 各自 `endswith(".tmp")`
+- **变更后**：`services` 允许 import `api.errors` / `api.response`（SDD §4.3 要求业务层抛 `AppError` 族），仍禁 `api.routers`/`deps`/`app_factory`；三处半成品判断共用 `PARTIAL_SUFFIXES = (".part", ".tmp")`
+- **原因**：C2 的 15 个端点全部在业务层判定业务规则并抛错误族；若禁止 import `api.errors`，只能在 services 复制一套异常，错误码必然漂移。半成品后缀若不统一，上传中断留下的 `.part` 会被孤儿扫描误报
+- **影响面**：无 API 变化；`/health.backlog.orphans` 与 `/staging/orphans` 口径一致
+- **回归**：`test_layer_import_rules`、`test_orphans_listed_and_partials_ignored`
+
+### 2026-10-23 · C2 · INTERNAL · A/B 双线合稿（以解析内核线 `main-e07d61db` 为主）
+
+- **对象**：15 个 `/api/v1/staging/*` 端点、错误码体系、阈值常量、测试夹具
+- **变更前**：C2 曾并行存在两套实现 —— A 线（解析内核：真实适配器 + 689/669 真实样例）与 B 线（缓冲区与向导：`FakeParser` 驱动的 15 端点）。二者在 `infra/parsers/*`、`models/{internal,staging}`、`repositories/*`、`services/*` 上正面冲突
+- **变更后（合稿定案）**：
+  - **代码取 A 线**：解析内核、仓储、编排、状态机（`services/batch_guard.py`）全部用 A 线版本。B 线的 `api/guards.py`（状态机门面）与 `tests/fakes/fake_parser.py` 因契约不兼容且零引用，删除
+  - **错误码保留 B 线的中性化**：`ErrorCode` / `AppError` 族仍在包根 `account_dashboard/errors.py`，`api/errors.py` 只做处理器 + re-export；A 线的 `infra/errors.py`（`InfraError` 字符串码）由 `services/error_mapping.py` 翻译。**两条机制不冲突**：infra 不 import api，services 经白名单 import `api.errors`，分层门禁全绿
+  - **阈值单一来源**：删除 `account_dashboard/limits.py`。`MAX_FILE_BYTES` / `MIN_DISK_FREE_BYTES` / `CHUNK_SIZE` 归 `infra/buffer_file.py`，`MAX_ROWS` 归 `infra/parsers/base.py`，`PAGE_SIZE_RANGE` 归 `api/validators.py`，`FP_QUERY_CHUNK` 归使用点 `repositories/transaction_repo.py`。避免"接口说 5MB、落盘说 6MB"的边界漂移
+  - **夹具改用真实样例**：B 线的 `tests/integration/conftest.py`（`StagingFlow`）删除，统一用 A 线的 `tests/conftest.py`（`client` / `upload` / `fixtures_dir`）
+- **补测（B 线独有、A 线未覆盖，已移植为 `tests/integration/test_staging_contract.py`）**：
+  - 15 端点清单精确匹配 + C3 端点（`confirm` / `report` / `orphans/cleanup`）缺席断言
+  - 三段式信封形状（成功 `code="OK"` / 失败 `E2001`）
+  - 分页边界矩阵：`page_size ∈ {9, 201}`、`page ∈ {0, -3}` → `E1010`；越界页返回空列表而非报错；枚举参数走 `E1008`
+  - 删除失败（`E4003`）端点级行为：批次**照常置 `discarded`**，失败路径写入 `cleanup_queue`（C3 重试），不回滚状态
+- **原因**：双线并行导致同一契约两份实现，合稿是唯一出路；以 A 线为主是因为它已含真实样例回归（689/669），B 线只有假解析器
+- **影响面**：无 API 变化；FZ-2 冻结的 DTO 与 15 端点路径一字未动
+- **回归**：291 条收集 / 289 passed / 2 skipped；`ruff check src tests` 全过；`mypy src` 无问题
 
 ### 2026-10-22 · C1 · ADDITIVE · FZ-1 基座契约冻结 v1
 

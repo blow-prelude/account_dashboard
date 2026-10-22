@@ -1,124 +1,117 @@
-"""渠道模板仓储（EX-20 / SDD §4.4.4）。
+"""渠道模板仓储（EX-20 / SDD §8.11）。
 
-DDL 已有部分唯一索引 ``uq_template_default ON channel_template(channel) WHERE is_default=1``，
-所以"先降级后插入"必须发生在**同一事务**内：否则中间态（两条 default）会撞索引，
-把一次正常的模板保存变成 500。
-
-``uq_template_name`` 约束 ``(channel, name)`` 唯一，因此重名时由
-:meth:`TemplateRepo.unique_name` 自动加 ``(2)``、``(3)`` 后缀 —— 这也是 ``save_as``
-策略"重名自动加后缀"的落地处。
+唯一性靠 DDL 的部分唯一索引：``channel_template(channel) WHERE is_default=1``。
+因此「同渠道至多一个默认」不是应用层自觉，而是数据库保证 —— 应用层只需保证
+**先降级后插入**的顺序正确，避免瞬时冲突。
 """
 
 from __future__ import annotations
 
-import json
 import sqlite3
-from typing import Any
+from dataclasses import dataclass
 
 from account_dashboard.infra.clock import now_iso
-from account_dashboard.infra.logger import get_logger
-from account_dashboard.models.internal import MappingSpec
-
-_logger = get_logger("template_repo")
+from account_dashboard.models.enums import Channel
 
 _COLUMNS = "id, channel, name, spec_json, is_default, created_at, updated_at"
-_NAME_MAX = 60
 
 
-def _to_dict(row: sqlite3.Row) -> dict[str, Any]:
-    data = dict(row)
-    try:
-        data["spec"] = MappingSpec.model_validate_json(data["spec_json"])
-    except (TypeError, ValueError) as exc:
-        _logger.warning("模板 spec 损坏，已跳过该条：%s", exc)
-        data["spec"] = None
-    data["is_default"] = bool(data["is_default"])
-    return data
+@dataclass(frozen=True, slots=True)
+class TemplateRow:
+    id: str
+    channel: str
+    name: str
+    spec_json: str
+    is_default: bool
+    created_at: str
+    updated_at: str
 
 
 class TemplateRepo:
     def __init__(self, conn: sqlite3.Connection) -> None:
         self._conn = conn
 
-    def list(self, channel: str | None = None) -> list[dict[str, Any]]:
-        if channel:
+    def list(self, channel: Channel | None = None) -> list[TemplateRow]:
+        if channel is None:
             rows = self._conn.execute(
-                f"SELECT {_COLUMNS} FROM channel_template WHERE channel = ? "
-                "ORDER BY is_default DESC, created_at ASC",
-                (channel,),
+                f"SELECT {_COLUMNS} FROM channel_template ORDER BY channel, is_default DESC, name"
             ).fetchall()
         else:
             rows = self._conn.execute(
-                f"SELECT {_COLUMNS} FROM channel_template ORDER BY channel ASC, "
-                "is_default DESC, created_at ASC"
+                f"SELECT {_COLUMNS} FROM channel_template WHERE channel = ? "
+                "ORDER BY is_default DESC, name",
+                (str(channel),),
             ).fetchall()
-        return [item for item in (_to_dict(row) for row in rows) if item["spec"] is not None]
+        return [record for row in rows if (record := _to_row(row)) is not None]
 
-    def get(self, template_id: str) -> dict[str, Any] | None:
+    def get(self, template_id: str) -> TemplateRow | None:
         row = self._conn.execute(
             f"SELECT {_COLUMNS} FROM channel_template WHERE id = ?", (template_id,)
         ).fetchone()
-        return _to_dict(row) if row is not None else None
+        return _to_row(row)
 
-    def get_default(self, channel: str) -> dict[str, Any] | None:
+    def get_default(self, channel: Channel) -> TemplateRow | None:
         row = self._conn.execute(
             f"SELECT {_COLUMNS} FROM channel_template WHERE channel = ? AND is_default = 1",
-            (channel,),
+            (str(channel),),
         ).fetchone()
-        return _to_dict(row) if row is not None else None
+        return _to_row(row)
 
-    def name_exists(self, channel: str, name: str) -> bool:
+    def find_by_name(self, channel: Channel, name: str) -> TemplateRow | None:
         row = self._conn.execute(
-            "SELECT 1 FROM channel_template WHERE channel = ? AND name = ? LIMIT 1",
-            (channel, name),
+            f"SELECT {_COLUMNS} FROM channel_template WHERE channel = ? AND name = ?",
+            (str(channel), name),
         ).fetchone()
-        return row is not None
+        return _to_row(row)
 
-    def unique_name(self, channel: str, base: str) -> str:
-        """``base`` 未被占用则原样返回，否则 ``base (2)``、``base (3)``…"""
-        cleaned = (base.strip() or "未命名模板")[:_NAME_MAX]
-        if not self.name_exists(channel, cleaned):
-            return cleaned
-        for index in range(2, 1000):
-            candidate = f"{cleaned[: _NAME_MAX - 6]} ({index})"
-            if not self.name_exists(channel, candidate):
-                return candidate
-        raise RuntimeError("模板名称后缀已用尽，请删除部分历史模板")  # pragma: no cover
+    def insert(
+        self,
+        *,
+        template_id: str,
+        channel: Channel,
+        name: str,
+        spec_json: str,
+        is_default: bool,
+    ) -> TemplateRow:
+        stamp = now_iso()
+        self._conn.execute(
+            "INSERT INTO channel_template(id, channel, name, spec_json, is_default, created_at, "
+            "updated_at) VALUES (?,?,?,?,?,?,?)",
+            (template_id, str(channel), name, spec_json, 1 if is_default else 0, stamp, stamp),
+        )
+        record = self.get(template_id)
+        assert record is not None
+        return record
 
-    def demote_defaults(self, channel: str) -> int:
+    def update_spec(self, template_id: str, *, spec_json: str, is_default: bool) -> TemplateRow:
+        self._conn.execute(
+            "UPDATE channel_template SET spec_json = ?, is_default = ?, updated_at = ? "
+            "WHERE id = ?",
+            (spec_json, 1 if is_default else 0, now_iso(), template_id),
+        )
+        record = self.get(template_id)
+        assert record is not None
+        return record
+
+    def demote_default(self, channel: Channel) -> int:
+        """把该渠道的默认模板降级（``is_default=0``，记录保留可查）。"""
         cursor = self._conn.execute(
             "UPDATE channel_template SET is_default = 0, updated_at = ? "
             "WHERE channel = ? AND is_default = 1",
-            (now_iso(), channel),
+            (now_iso(), str(channel)),
         )
         return cursor.rowcount
 
-    def create(
-        self,
-        *,
-        channel: str,
-        name: str,
-        spec: MappingSpec,
-        is_default: bool,
-        template_id: str,
-    ) -> dict[str, Any]:
-        now = now_iso()
-        self._conn.execute(
-            "INSERT INTO channel_template (id, channel, name, spec_json, is_default, "
-            "created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
-            (
-                template_id,
-                channel,
-                name,
-                json.dumps(spec.model_dump(), ensure_ascii=False, sort_keys=True),
-                1 if is_default else 0,
-                now,
-                now,
-            ),
-        )
-        created = self.get(template_id)
-        assert created is not None
-        return created
 
-
-__all__ = ["TemplateRepo"]
+def _to_row(row: sqlite3.Row | None) -> TemplateRow | None:
+    if row is None:
+        return None
+    return TemplateRow(
+        id=str(row["id"]),
+        channel=str(row["channel"]),
+        name=str(row["name"]),
+        spec_json=str(row["spec_json"]),
+        is_default=bool(row["is_default"]),
+        created_at=str(row["created_at"]),
+        updated_at=str(row["updated_at"]),
+    )

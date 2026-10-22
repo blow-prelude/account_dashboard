@@ -1,104 +1,153 @@
-"""标准内部模型（**D0 契约**，C2-A §2.1 / §2.4）。
+"""跨层内部结构（不出现在 API 契约里）。
 
-本文件是 A/B 两条并行线唯一的编译期依赖：字段名、类型、``None`` 语义一经签字即为
-FZ-2 的一部分，改名等于让另一条线返工。B 线只读不写。
-
-三个必须记住的语义：
-
-* ``row_no`` 是 **1-based 数据行号**（不含前言与表头），与未来 ``raw_YYYY_MM.row_no``
-  一一对应 —— 报告页"第 N 行有问题"能直接定位到原文件；
-* ``rows`` **包含** ``is_valid=False`` 的行，不得在解析层过滤，否则预检的
-  ``pending_manual`` 计数与报告四数字对不上（D-3）；
-* ``amount_cents`` 是**整数分**，``fp`` 缺时间或金额时为 ``None``（EX-21）。
+``MappingSpec`` 是「列索引 → 标准字段」的内部表示；API 层的 ``MappingReq`` 是它的
+请求形态（多了 ``save_template`` 等动作开关）。``MappingSnapshot`` 是 I11 的载体：
+预检成功时固化一次，C3 入库与 C4 重算都靠它重放，保证「当时口径」不被后来的模板改动污染。
 """
 
 from __future__ import annotations
 
-from typing import Any, Literal
+from dataclasses import dataclass, field
+from typing import Any
 
-from pydantic import BaseModel, Field
+from account_dashboard.models.enums import Direction
 
-Direction = Literal["income", "expense", "neutral"]
-Channel = Literal["wechat", "alipay", "bank", "other"]
-IssueCode = Literal["AMOUNT_PARSE", "TIME_PARSE", "DIRECTION_UNKNOWN", "EMPTY_ROW"]
-
-
-class ParseIssue(BaseModel):
-    """行级问题：不阻断批次，只让该行进入待确认（EX-06/07/21）。"""
-
-    code: IssueCode
-    row_no: int  # 1-based，与 raw.row_no 一致
-    field: str | None = None  # "amount" / "occurred_at" / "direction"
-    raw: str | None = None  # 原始值（截断 64 字符）
-
-
-class ParsedRow(BaseModel):
-    row_no: int  # 1-based，数据行序号（不含前言与表头）
-    occurred_at: str | None  # ISO 本地时间；解析失败为 None
-    amount_cents: int | None  # 整数分；解析失败为 None
-    direction: Direction  # 无法判定时为 neutral + issue
-    counterparty: str | None
-    item: str | None
-    txn_type: str | None
-    payment_method: str | None
-    platform_category: str | None
-    platform_status: str | None
-    channel: Channel
-    fp: str | None  # 缺时间或金额时为 None（EX-21）
-    raw_payload: dict[str, Any]  # 整行原貌：{表头名: 原始值}
-
-    @property
-    def is_valid(self) -> bool:
-        """时间与金额都可解析 → 可参与指纹比对与入库。"""
-        return self.occurred_at is not None and self.amount_cents is not None
+MAPPING_FIELDS: tuple[str, ...] = (
+    "occurred_at",
+    "amount",
+    "direction",
+    "counterparty",
+    "item",
+    "txn_type",
+    "payment_method",
+    "platform_category",
+    "platform_status",
+)
+CORE_MAPPING_FIELDS: tuple[str, ...] = (
+    "occurred_at",
+    "amount",
+    "direction",
+    "counterparty",
+    "item",
+)
+CORE_FIELD_LABELS: dict[str, str] = {
+    "occurred_at": "交易时间",
+    "amount": "金额",
+    "direction": "收/支",
+    "counterparty": "交易对方",
+    "item": "商品说明",
+}
+ALLOWED_AMOUNT_SCALES = (1, 100)
 
 
-class ParseMeta(BaseModel):
-    sheet: str | None = None
-    delimiter: str | None = None
-    preamble_rows: int = 0
-    header_row_no: int = 0  # 0-based
-    empty_rows_skipped: int = 0  # 数据区整行空行，必须可见、不得静默丢弃
-    issues: dict[str, int] = Field(default_factory=dict)  # {"TIME_PARSE": 1}
+@dataclass(frozen=True, slots=True)
+class MappingSpec:
+    """列映射（-1 / None 表示未映射）。"""
 
-
-class ParseResult(BaseModel):
-    rows: list[ParsedRow]
-    header_row_no: int
-    encoding: str  # "xlsx" / "gb18030" / "utf-8"
-    adapter: str  # "wechat_xlsx" / "alipay_csv" / "generic"
-    columns: int  # 识别出的列数（含尾随空列）
-    meta: ParseMeta
-
-
-class MappingSpec(BaseModel):
-    """列索引映射。``-1`` 或 ``None`` 表示未映射。
-
-    ``amount_scale`` 语义（D-4，两条线必须一致）：它是「原始数值 → 分」的**倍率**。
-    ``1`` 走常规路径（``Decimal(v) * 100``）；``100`` 表示文件本身以分为单位。
-    只允许 ``{1, 100}``，其他值由 B 线入口校验报 ``E1008``。
-    """
-
-    occurred_at: int
-    amount: int
-    direction: int
-    counterparty: int | None = None
-    item: int | None = None
-    txn_type: int | None = None
-    payment_method: int | None = None
-    platform_category: int | None = None
-    platform_status: int | None = None
-    direction_map: dict[str, Direction] = Field(default_factory=dict)
+    columns: dict[str, int | None] = field(default_factory=dict)
+    direction_map: dict[str, Direction] = field(default_factory=dict)
     amount_scale: int = 1
+    template_id: str | None = None
+
+    def column(self, name: str) -> int | None:
+        index = self.columns.get(name)
+        if index is None or index < 0:
+            return None
+        return index
+
+    def missing_core(self) -> list[str]:
+        return [name for name in CORE_MAPPING_FIELDS if self.column(name) is None]
+
+    def as_column_map(self) -> dict[str, int | None]:
+        return {name: self.column(name) for name in MAPPING_FIELDS}
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "columns": self.as_column_map(),
+            "direction_map": {key: str(value) for key, value in self.direction_map.items()},
+            "amount_scale": self.amount_scale,
+            "template_id": self.template_id,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> MappingSpec:
+        raw_columns = data.get("columns") or {}
+        columns = {name: _as_optional_int(raw_columns.get(name)) for name in MAPPING_FIELDS}
+        raw_direction = data.get("direction_map") or {}
+        direction_map = {
+            str(key): Direction(value) for key, value in raw_direction.items() if value
+        }
+        return cls(
+            columns=columns,
+            direction_map=direction_map,
+            amount_scale=int(data.get("amount_scale") or 1),
+            template_id=data.get("template_id"),
+        )
 
 
-__all__ = [
-    "Channel",
-    "Direction",
-    "IssueCode",
-    "MappingSpec",
-    "ParseIssue",
-    "ParseMeta",
-    "ParseResult",
-    "ParsedRow",
-]
+@dataclass(frozen=True, slots=True)
+class MappingSnapshot:
+    """预检成功时固化的解析口径（I11）。"""
+
+    adapter: str
+    encoding: str
+    header_row_no: int
+    column_map: dict[str, int | None]
+    direction_map: dict[str, str]
+    amount_scale: int
+    template_id: str | None
+    created_at: str
+    fp_version: str = "v1"
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "adapter": self.adapter,
+            "encoding": self.encoding,
+            "header_row_no": self.header_row_no,
+            "column_map": dict(self.column_map),
+            "direction_map": dict(self.direction_map),
+            "amount_scale": self.amount_scale,
+            "template_id": self.template_id,
+            "created_at": self.created_at,
+            "fp_version": self.fp_version,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> MappingSnapshot:
+        return cls(
+            adapter=str(data.get("adapter") or "generic"),
+            encoding=str(data.get("encoding") or ""),
+            header_row_no=int(data.get("header_row_no") or 0),
+            column_map={
+                name: _as_optional_int((data.get("column_map") or {}).get(name))
+                for name in MAPPING_FIELDS
+            },
+            direction_map={
+                str(key): str(value)
+                for key, value in (data.get("direction_map") or {}).items()
+            },
+            amount_scale=int(data.get("amount_scale") or 1),
+            template_id=data.get("template_id"),
+            created_at=str(data.get("created_at") or ""),
+            fp_version=str(data.get("fp_version") or "v1"),
+        )
+
+    def as_mapping_spec(self) -> MappingSpec:
+        return MappingSpec(
+            columns=dict(self.column_map),
+            direction_map={
+                key: Direction(value) for key, value in self.direction_map.items()
+            },
+            amount_scale=self.amount_scale,
+            template_id=self.template_id,
+        )
+
+
+def _as_optional_int(value: Any) -> int | None:
+    if value is None or value == "":
+        return None
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return None
+    return parsed if parsed >= 0 else None

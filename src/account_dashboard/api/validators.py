@@ -1,144 +1,69 @@
-"""入口校验（C2-B §4.7，SDD §4.1.4）。
+"""入口校验（SDD §4.1.4）：只做「请求形状合法吗」，不碰业务。
 
-顺序与错误码固定（§4.1 的 ①②）：
-
-* 扩展名 / MIME / 声明大小 → ``E1001``(415) / ``E1005``(413) / ``E1004``(422)；
-* 分页越界 → ``E1010``(422)；
-* 枚举与排序 → ``E1008``(422)。
-
-阈值常量来自 ``account_dashboard.limits``：同一个数字被 infra/services/api 三处使用，
-各写一份必然出现"接口说 5MB、落盘说 6MB"的边界缺陷。
+放在 ``api`` 层而不是 service：这类校验的语义是「请求本身有问题」，
+与「业务规则不允许」分开之后，错误码 1xxx / 2xxx 的边界才不会含糊。
 """
 
 from __future__ import annotations
 
 from pathlib import Path
 
-from account_dashboard.errors import EntryValidationError, ErrorCode
-from account_dashboard.limits import (
-    MAX_FILE_BYTES,
-    PAGE_SIZE_MAX,
-    PAGE_SIZE_MIN,
-    PREVIEW_DEFAULT_LIMIT,
-    PREVIEW_MAX_LIMIT,
-)
-from account_dashboard.models.internal import Channel
+from account_dashboard.api.errors import EntryValidationError, ErrorCode
+from account_dashboard.infra.buffer_file import ALLOWED_EXTENSIONS, MAX_FILE_BYTES
 
-ALLOWED_EXT = frozenset({".csv", ".xlsx"})
+ALLOWED_EXT = ALLOWED_EXTENSIONS
 ALLOWED_MIME = frozenset(
     {
         "text/csv",
         "application/csv",
         "text/plain",
+        "application/vnd.ms-excel",
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        "application/octet-stream",  # 浏览器对 .csv 常见兜底
+        "application/octet-stream",  # 浏览器对本地文件常见兜底
+        "multipart/form-data",
     }
 )
-CHANNELS: tuple[str, ...] = ("wechat", "alipay", "bank", "other")
-BATCH_STATUSES: tuple[str, ...] = (
-    "uploaded",
-    "mapped_pending",
-    "prechecked",
-    "ingesting",
-    "ingested",
-    "discarded",
-    "failed",
-)
-BATCH_SORTS = frozenset({"created_at", "-created_at"})
+PAGE_SIZE_RANGE = (10, 200)
 
 
-def validate_upload_meta(
-    file_name: str, content_type: str | None, declared_size: int | None
-) -> None:
-    suffix = Path(file_name or "").suffix.lower()
-    if suffix not in ALLOWED_EXT:
+def validate_upload_meta(file_name: str, content_type: str | None) -> None:
+    """扩展名 + MIME；大小与行数的硬限制在落盘/解析环节兜底（流式）。"""
+    extension = Path(file_name).suffix.lower()
+    if extension not in ALLOWED_EXT:
         raise EntryValidationError(
             ErrorCode.FILE_TYPE_UNSUPPORTED,
-            "只支持 CSV 或 xlsx 账单文件，请重新导出",
-            detail={"file_name": file_name},
+            "只支持 CSV 或 Excel(.xlsx) 文件，请重新导出",
+            detail={"file_name": file_name, "allowed": sorted(ALLOWED_EXT)},
         )
-    if content_type and content_type.split(";")[0].strip().lower() not in ALLOWED_MIME:
+    normalized = (content_type or "").split(";")[0].strip().lower()
+    if normalized and normalized not in ALLOWED_MIME:
         raise EntryValidationError(
             ErrorCode.FILE_TYPE_UNSUPPORTED,
-            "文件类型不被支持，请确认是 CSV 或 xlsx 账单",
-            detail={"content_type": content_type},
+            "只支持 CSV 或 Excel(.xlsx) 文件，请重新导出",
+            detail={"content_type": normalized, "allowed": sorted(ALLOWED_MIME)},
         )
-    if declared_size is not None:
-        if declared_size <= 0:
-            raise EntryValidationError(ErrorCode.EMPTY_FILE, "文件是空的，请重新导出账单后再上传")
-        if declared_size > MAX_FILE_BYTES:
-            raise EntryValidationError(
-                ErrorCode.FILE_TOO_LARGE,
-                f"文件超过 {MAX_FILE_BYTES // (1024 * 1024)}MB，请按月拆分后再上传",
-                detail={"declared_size": declared_size},
-            )
+
+
+def validate_declared_size(declared_size: int) -> None:
+    if declared_size > MAX_FILE_BYTES:
+        raise EntryValidationError(
+            ErrorCode.FILE_TOO_LARGE,
+            f"文件超过 {MAX_FILE_BYTES // (1024 * 1024)}MB，请按月份分批导出",
+            detail={"max_bytes": MAX_FILE_BYTES},
+        )
 
 
 def validate_page(page: int, page_size: int) -> None:
+    low, high = PAGE_SIZE_RANGE
     if page < 1:
+        raise EntryValidationError(ErrorCode.INVALID_PAGINATION, "页码必须从 1 开始")
+    if not low <= page_size <= high:
         raise EntryValidationError(
-            ErrorCode.INVALID_PAGINATION, "页码从 1 开始", detail={"page": page}
-        )
-    if not PAGE_SIZE_MIN <= page_size <= PAGE_SIZE_MAX:
-        raise EntryValidationError(
-            ErrorCode.INVALID_PAGINATION,
-            f"每页条数必须在 {PAGE_SIZE_MIN}~{PAGE_SIZE_MAX} 之间",
-            detail={"page_size": page_size},
+            ErrorCode.INVALID_PAGINATION, f"每页条数必须在 {low}~{high} 之间"
         )
 
 
-def validate_sort(sort: str | None, allowed: frozenset[str] = BATCH_SORTS) -> str:
-    candidate = (sort or "-created_at").strip()
-    if candidate not in allowed:
-        raise EntryValidationError(
-            ErrorCode.INVALID_ENUM_VALUE,
-            "排序只支持 " + " / ".join(sorted(allowed)),
-            detail={"sort": candidate},
-        )
-    return candidate
-
-
-def validate_status(status: str | None) -> str | None:
-    if status is None or status == "":
-        return None
-    if status not in BATCH_STATUSES:
-        raise EntryValidationError(
-            ErrorCode.INVALID_ENUM_VALUE,
-            "批次状态不合法，请从筛选项中选择",
-            detail={"status": status},
-        )
-    return status
-
-
-def validate_channel(channel: str | None) -> Channel | None:
-    if channel is None or channel == "":
-        return None
-    if channel not in CHANNELS:
-        raise EntryValidationError(
-            ErrorCode.INVALID_ENUM_VALUE,
-            "渠道只能是微信 / 支付宝 / 银行 / 其他",
-            detail={"channel": channel},
-        )
-    return channel  # type: ignore[return-value]
-
-
-def clamp_preview_limit(limit: int | None) -> int:
-    """``limit`` 只做上限截断（1000 → 50），不报错 —— 预览是只读操作，宽容比严格好。"""
-    if limit is None:
-        return PREVIEW_DEFAULT_LIMIT
-    return max(1, min(int(limit), PREVIEW_MAX_LIMIT))
-
-
-__all__ = [
-    "ALLOWED_EXT",
-    "ALLOWED_MIME",
-    "BATCH_SORTS",
-    "BATCH_STATUSES",
-    "CHANNELS",
-    "clamp_preview_limit",
-    "validate_channel",
-    "validate_page",
-    "validate_sort",
-    "validate_status",
-    "validate_upload_meta",
-]
+def validate_limit(limit: int, *, maximum: int) -> int:
+    if limit < 1:
+        raise EntryValidationError(ErrorCode.INVALID_PAGINATION, "预览条数必须大于 0")
+    return min(limit, maximum)

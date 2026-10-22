@@ -3,7 +3,8 @@
 本地单用户、单账本的财务分析工具。后端 Python 3.11 + FastAPI + SQLite，数据全部留在本机
 `data/` 目录，不上传、不外联。
 
-> 当前进度：**C1 工程基座已完成，C2 实施中**；**前端静态 SPA 已交付**
+> 当前进度：**C2 解析与缓冲区已完成**（真实账单 689/669 行全解析，上传→解析→映射→预检链路打通；
+> 库内 `transaction` 仍为 0 行 —— 入库属 C3）；**前端静态 SPA 已交付**
 > （C4 统计接口就绪前使用契约同构的本地数据源，顶栏会明确标注）。
 > 详细计划见 [`docs/devel/README.md`](docs/devel/README.md)，设计依据见
 > [`docs/个人财务分析仪表盘-软件设计文档-v1.0.md`](docs/个人财务分析仪表盘-软件设计文档-v1.0.md)，
@@ -52,6 +53,7 @@ uv run account-dashboard run
 | `uv run pytest` | 全部测试 |
 | `uv run ruff check src tests` | 静态检查 |
 | `uv run mypy src` | 类型检查 |
+| `uv run python -m account_dashboard.infra.parsers.check <账单>` | 解析器自检（行数/表头/编码/方向/月份分布） |
 
 ---
 
@@ -111,11 +113,11 @@ data/
 
 ```
 src/account_dashboard/
-├─ api/           # 接口层：路由、统一响应、错误处理、静态挂载
-├─ services/      # 业务层：编排与口径（C2 起逐步填充）
-├─ repositories/  # 数据层：连接、UoW、迁移
-├─ infra/         # 基础设施：路径、日志、文件锁、对账、解析器
-├─ models/        # DTO
+├─ api/           # 接口层：路由（health / staging）、统一响应、错误处理、静态挂载
+├─ services/      # 业务层：导入编排、映射、去重预检、状态机
+├─ repositories/  # 数据层：连接、UoW、迁移、批次/模板/强制新增仓储
+├─ infra/         # 基础设施：路径、日志、文件锁、对账、缓冲区、解析器（parsers/）
+├─ models/        # DTO（staging / internal / enums）
 └─ migrations/    # V001__init.sql（12 张表）
 tests/            # unit / integration
 ```
