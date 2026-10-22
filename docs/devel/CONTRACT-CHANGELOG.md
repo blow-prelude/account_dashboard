@@ -20,7 +20,7 @@
 | 冻结点 | 时点 | 对象 | 状态 |
 |--------|------|------|------|
 | FZ-1 | C1 收口 | `ApiResponse`、`PageMeta`、`Page`、`ErrorCode`（37 值）、退出码 1~5、`/health` | **已冻结 v1（2026-10-22）** |
-| FZ-2 | C2 收口 | `BatchDTO`、`BatchDetailDTO`、`ParseMetaDTO`、`MappingReq`、`PrecheckResultDTO`、7 个批次状态 | 待冻结 |
+| FZ-2 | C2 收口 | `BatchDTO`、`BatchDetailDTO`、`ParseMetaDTO`、`MappingReq`、`PrecheckResultDTO`、7 个批次状态 | **已冻结 v1（2026-10-22）** |
 | FZ-3 | C3 收口 | `IngestReportDTO`、`RawRecordDTO`、`raw_YYYY_MM` 列定义、`pending_delete_flag`、7×6 状态矩阵 | 待冻结 |
 | FZ-4 | C4 收口 | 12 指标 DTO、`base_filter` 语义、`period/anchor` 格式、`null` 语义、三入口同源 | 待冻结 |
 
@@ -29,6 +29,31 @@
 ---
 
 ## 3. 变更流水
+
+### 2026-10-22 · C2 · ADDITIVE · FZ-2 缓冲区契约冻结 v1
+
+- **对象**：`BatchDTO`、`BatchDetailDTO`、`ParseMetaDTO`、`ParseIssueDTO`、`PreviewDTO`、`MappingReq`、`MappingResultDTO`、`TemplateReq`/`TemplateDTO`、`PrecheckRowDTO`、`PrecheckResultDTO`、`OverrideDTO`、7 个批次状态字面量、15 个 `/api/v1/staging/*` 端点
+- **冻结内容**：
+  - `BatchDTO{id, file_name, file_size, channel, status, total_rows, new_count, dup_count, pending_count, encoding, adapter, fail_reason, created_at, updated_at}`
+  - `BatchDetailDTO = BatchDTO + {header_row_no, mapped_fields: MappingReq, mapping_snapshot: dict, parse_meta: ParseMetaDTO, file_exists}`
+  - `MappingReq` 的 9 个列字段（`-1`/`null` = 未映射）+ `direction_map` + `amount_scale` + 3 个可选模板开关（`save_template` / `template_name` / `template_policy`）
+  - `amount_scale` 语义：**`1` = 原始列为元（默认），`100` = 原始列为分**；其他值 → `E1008`
+  - `PrecheckRowDTO.label ∈ {new, dup, pending_manual}`；`PrecheckResultDTO.summary` 恒含 `total/new/dup/pending_manual` 四键（缺失也返回 0）
+  - 批次状态机：`failed --map--> mapped_pending` 合法（EX-03 手动映射）；`mapped_pending --parse-->` 一律 `E2002`；`ingest`/`confirm` 在 C2 全域非法
+- **新增（不影响既有字段）**：`ParseResultDTO`/`ParseInfoDTO`、`PreviewRowDTO`、`OrphanFileDTO`、`BufferUsageDTO`、`EnsureDirDTO`、`DiscardReq`、`RemovedDTO`
+- **未加入**：`BatchDetailDTO.report` —— 留给 C3 的 `IngestReportDTO` 以新增可选字段加入（现在占位会导致 C3 改类型 = BREAKING）
+- **影响面**：C3 入库/重放、C4 重算、前端导入向导（1 个上传 + 1 个列表 + 13 个动作端点）
+- **回归用例**：`tests/unit/test_batch_state_machine.py`（7×6 全矩阵）、`tests/integration/test_staging_{upload,mapping,precheck,buffer}.py`、`tests/integration/test_real_samples.py`
+- **实施备注**：错误码仍只有 `api/errors.py` 一处枚举；infra 抛 `InfraError`（字符串码），由 `services/error_mapping.py` 翻译，分层门禁未放宽到整层
+
+### 2026-10-22 · C2 · INTERNAL · 分层门禁与半成品后缀口径统一
+
+- **对象**：`tests/integration/test_layering.py`、`infra/buffer_file.PARTIAL_SUFFIXES`
+- **变更前**：`services` 一律禁止 import `api`；`health` / `reconciliation` / `staging/orphans` 各自 `endswith(".tmp")`
+- **变更后**：`services` 允许 import `api.errors` / `api.response`（SDD §4.3 要求业务层抛 `AppError` 族），仍禁 `api.routers`/`deps`/`app_factory`；三处半成品判断共用 `PARTIAL_SUFFIXES = (".part", ".tmp")`
+- **原因**：C2 的 15 个端点全部在业务层判定业务规则并抛错误族；若禁止 import `api.errors`，只能在 services 复制一套异常，错误码必然漂移。半成品后缀若不统一，上传中断留下的 `.part` 会被孤儿扫描误报
+- **影响面**：无 API 变化；`/health.backlog.orphans` 与 `/staging/orphans` 口径一致
+- **回归**：`test_layer_import_rules`、`test_orphans_listed_and_partials_ignored`
 
 ### 2026-10-22 · C1 · ADDITIVE · FZ-1 基座契约冻结 v1
 

@@ -15,6 +15,7 @@ from account_dashboard import __version__
 from account_dashboard.api.errors import register_exception_handlers
 from account_dashboard.api.response import ApiResponse
 from account_dashboard.api.routers import health as health_router
+from account_dashboard.api.routers import staging as staging_router
 from account_dashboard.api.static_mount import mount_spa
 from account_dashboard.config import BootstrapConfig, load_bootstrap_config
 from account_dashboard.infra.paths import DataPaths, static_dir
@@ -46,6 +47,7 @@ def create_app(
 
     register_exception_handlers(app)
     app.include_router(health_router.router)
+    app.include_router(staging_router.router)
     app.add_api_route(
         "/health",
         health_router.health,

@@ -10,9 +10,11 @@ from collections.abc import Iterator
 from fastapi import Request
 
 from account_dashboard.config import BootstrapConfig
+from account_dashboard.infra.buffer_file import BufferFileManager
 from account_dashboard.infra.paths import DataPaths
 from account_dashboard.repositories.database import Database
 from account_dashboard.repositories.unit_of_work import UnitOfWork
+from account_dashboard.services.import_orchestrator import ImportOrchestrator
 
 
 def get_database(request: Request) -> Database:
@@ -39,3 +41,18 @@ def get_config(request: Request) -> BootstrapConfig:
 def get_uow(request: Request) -> Iterator[UnitOfWork]:
     """事务由业务层 ``with uow.begin():`` 自行开启；这里只负责生命周期。"""
     yield UnitOfWork(get_database(request))
+
+
+def get_orchestrator(request: Request) -> Iterator[ImportOrchestrator]:
+    """导入编排器的装配点。
+
+    这里是 ``api`` 允许触达 ``repositories`` 的唯一例外（见 ``test_layering``）：
+    仓储与会话只在此处构造，业务层拿到的是完整的服务对象。
+    """
+    database = get_database(request)
+    paths = get_paths(request)
+    yield ImportOrchestrator(
+        uow=UnitOfWork(database),
+        buffer=BufferFileManager(paths.buffer_dir),
+        database=database,
+    )

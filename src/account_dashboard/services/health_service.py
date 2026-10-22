@@ -10,6 +10,7 @@ import sqlite3
 from pathlib import Path
 
 from account_dashboard import __version__
+from account_dashboard.infra.buffer_file import PARTIAL_SUFFIXES
 from account_dashboard.infra.logger import get_logger
 from account_dashboard.infra.paths import DataPaths
 from account_dashboard.models.common import BacklogDTO, HealthDTO
@@ -79,5 +80,7 @@ class HealthService:
         return sum(
             1
             for entry in buffer_dir.iterdir()
-            if entry.is_file() and not entry.name.endswith(".tmp") and entry.name not in known
+            if entry.is_file()
+            and not entry.name.endswith(PARTIAL_SUFFIXES)
+            and entry.name not in known
         )
