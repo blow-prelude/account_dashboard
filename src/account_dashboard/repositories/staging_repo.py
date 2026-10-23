@@ -5,6 +5,10 @@
 * **无物理删除** —— 批次是审计对象，丢弃只改状态（``discarded``）；
 * **状态写入必须带 ``expected_from``** —— 条件更新是并发/重试的唯一防线（C3 的幂等闸门同源）；
 * SQL 全参数化，列名白名单写死。
+
+C3-A 在本仓储增加两个写路径方法（``try_enter_ingesting`` / ``finish_ingest``），
+它们是 ``staging_batch`` 状态机的最后两个写入点；``pending_delete_flag`` 的语义
+见 ``finish_ingest`` 的注释。
 """
 
 from __future__ import annotations
@@ -19,7 +23,8 @@ from account_dashboard.models.enums import BatchStatus, Channel
 _BATCH_COLUMNS = (
     "id, file_name, stored_name, file_size, channel, status, total_rows, new_count, dup_count, "
     "pending_count, encoding, adapter, header_row_no, mapped_fields, mapping_snapshot, "
-    "parse_meta, report_json, fail_reason, created_at, updated_at"
+    "parse_meta, report_json, pending_delete_flag, deleted_at, fail_reason, ingest_started_at, "
+    "committed_at, created_at, updated_at"
 )
 
 
@@ -42,9 +47,15 @@ class BatchRow:
     mapping_snapshot: str | None
     parse_meta: str | None
     report_json: str | None
-    fail_reason: str | None
-    created_at: str
-    updated_at: str
+    # 删除意图（I9）：仅表示缓冲区物理文件的删除意图，与"待删除主数据"无关。
+    # 只有 finish_ingest 能置 1；清零归 B 线的 cleanup_repo。
+    pending_delete_flag: int = 0
+    deleted_at: str | None = None
+    fail_reason: str | None = None
+    ingest_started_at: str | None = None
+    committed_at: str | None = None
+    created_at: str = ""
+    updated_at: str = ""
 
     @property
     def status_enum(self) -> BatchStatus:
@@ -211,6 +222,65 @@ class StagingRepo:
         )
         return cursor.rowcount
 
+    # ── 入库写路径（C3-A） ─────────────────────────────────────
+    def try_enter_ingesting(self, batch_id: str, *, now: str | None = None) -> int:
+        """幂等闸门：``prechecked → ingesting`` 的条件 UPDATE。
+
+        **不是"先查后改"**（那有 TOCTOU：并发两次都查到 prechecked）。这里靠
+        条件 UPDATE + ``rowcount`` 判定，配合 ``BEGIN IMMEDIATE`` 的写锁天然串行化：
+        并发双提交时，后到者的事务开始前闸门已把状态改写，``rowcount == 0`` → E2002。
+
+        必须在**已开启**的事务内调用（由 ``IngestService`` 负责开事务）：闸门与
+        后续写入在同一事务里，进程崩溃时 SQLite 自动回滚，批次仍是 ``prechecked``
+        —— 不会留下永久 ``ingesting`` 脏状态（PRD 9.2 收口规则 4 / D-8）。
+        守卫本身不开事务、不提交。
+        """
+        stamp = now or now_iso()
+        cursor = self._conn.execute(
+            "UPDATE staging_batch SET status = ?, ingest_started_at = ?, updated_at = ? "
+            "WHERE id = ? AND status = ?",
+            (
+                str(BatchStatus.INGESTING),
+                stamp,
+                stamp,
+                batch_id,
+                str(BatchStatus.PRECHECKED),
+            ),
+        )
+        return cursor.rowcount
+
+    def finish_ingest(
+        self,
+        batch_id: str,
+        *,
+        report_json: str,
+        mapping_snapshot: str,
+        committed_at: str,
+        pending_delete_flag: int = 1,
+    ) -> int:
+        """入库收口：``ingested`` + 冻结报告与快照 + 删除意图旗标。
+
+        * ``mapping_snapshot`` 在此**原样回写**（D-5）：C2 预检写的那份可能已被
+          用户后续操作污染，入库事务内读到的这份才是 I11 要的"入库时刻不可变快照"；
+          回写之后该字段只读（grep 门禁见 tests/integration/test_write_path_gates.py）。
+        * ``pending_delete_flag`` 只有本方法能置 1，且**仅表示缓冲区物理文件的删除
+          意图**，与"待删除主数据"无关；清零归 B 线 ``cleanup_repo``。
+        """
+        cursor = self._conn.execute(
+            "UPDATE staging_batch SET status = ?, report_json = ?, mapping_snapshot = ?, "
+            "committed_at = ?, pending_delete_flag = ?, updated_at = ? WHERE id = ?",
+            (
+                str(BatchStatus.INGESTED),
+                report_json,
+                mapping_snapshot,
+                committed_at,
+                pending_delete_flag,
+                committed_at,
+                batch_id,
+            ),
+        )
+        return cursor.rowcount
+
     # ── 读 ────────────────────────────────────────────────────
     def get(self, batch_id: str) -> BatchRow | None:
         row = self._conn.execute(
@@ -268,7 +338,11 @@ def _to_row(row: sqlite3.Row | None) -> BatchRow | None:
         mapping_snapshot=row["mapping_snapshot"],
         parse_meta=row["parse_meta"],
         report_json=row["report_json"],
+        pending_delete_flag=int(row["pending_delete_flag"] or 0),
+        deleted_at=row["deleted_at"],
         fail_reason=row["fail_reason"],
+        ingest_started_at=row["ingest_started_at"],
+        committed_at=row["committed_at"],
         created_at=str(row["created_at"]),
         updated_at=str(row["updated_at"]),
     )

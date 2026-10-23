@@ -160,6 +160,46 @@
 - **影响面**：无（尚未实现）
 - **回归用例**：无
 
+### 2026-10-23 · C3-A 实施 · ADDITIVE · FZ-3 前半：入库端点、`IngestReportDTO`、raw 分表与三错误码
+
+- **对象**：
+  - 新端点 ×2：`POST /api/v1/staging/batches/{batch_id}/confirm`、`GET /api/v1/staging/batches/{batch_id}/report?include_skipped=`
+  - 新 DTO：`IngestReportDTO`、`IngestReportDetailDTO`、`SkippedRowDTO`（`models/ingest.py`，FZ-3 组成部分）
+  - `BatchDetailDTO.report: IngestReportDTO | None = None`（FZ-2 加字段，C2 冻结时预留的位置，非 BREAKING）
+  - `staging_batch` 新列 ×4：`ingest_started_at` / `committed_at` / `pending_delete_flag` / `deleted_at`
+  - `raw_YYYY_MM` 16 列 + 2 索引（与 SDD §5.2 模板逐列一致）
+  - 7×6 状态矩阵开放 `ingest` / `confirm` 两列（C2 期间全域 `E2002` 的口径解除）
+  - 新错误码 ×3：`E3001`（入库事务失败）、`E3002`（raw 表名非法）、`E3003`（数据库忙）
+- **契约要点**：
+  - `IngestReportDTO{batch_id, total, inserted, skipped_dup, skipped_invalid, pending, monthly: dict, files_deleted, cleanup_pending, cleanup_id, finished_at}`；自洽恒等式 `total == inserted + skipped_dup + skipped_invalid`、`sum(monthly.values()) == inserted`
+  - `report_json` 只存事实（`total/inserted/skipped_dup/skipped_invalid/pending/monthly/finished_at/skipped[]`），**不存** `files_deleted` / `cleanup_*`——唯一事实源是 `pending_delete_flag`，读取时由 `from_stored` 从旗标推导（D-6 的 `skipped[]` 仅 `include_skipped=true` 时返回）
+  - `pending_delete_flag` 语义（I9）：**仅表示缓冲区物理文件的删除意图**；A 线只有 `finish_ingest` 能置 1，B 线是唯一置 0 方
+  - `monthly` 键为物理表名（`raw_2026_06`），值为该表本次写入行数
+- **原因**：C3-A 是唯一写路径，契约必须随实现一次性落定；FZ-3 的 `RawRecordDTO` 与 `/raw/*`、`/trace`、cleanup 端点属 B 线，**FZ-3 整体仍标注「待冻结」**，待 B 线与合稿完成后统一冻结
+- **影响面**：前端导入向导第三步（确认/报告）；B 线的 `/raw/months`、`/trace`、cleanup 队列都要与 `report_json` 结构对得上；C4 只读 `transaction`，不受影响
+- **回归**：`tests/integration/test_ingest_multi_month.py`（5 表逐月 101/136/182/143/107）、`test_ingest_all_dup.py`（669 条全 DUP 仍置 `ingested`、零建表）、`test_ingest_skipped_invalid.py`（D-6 分支 > 0）、`test_override_bypass_dup.py`（override 绕过 fp）、`test_raw_payload_fidelity.py`（5 月抽样逐项一致）、`test_write_path_gates.py`（grep 门禁 + `hasattr`）、`test_dto_wiring.py`
+- **批准**：xtgxiso（A 线负责人），待 C3 合稿评审复核
+
+### 2026-10-23 · C3-A 实施 · ADDITIVE · D-7 显式偏离 SDD §7.5（删文件失败返回 200 而非 409）
+
+- **对象**：`POST .../confirm` 在"数据已提交、删缓冲区文件失败"时的返回值
+- **变更前**（SDD §7.5）：返回 409 `E4003`
+- **变更后**：返回 **200 + `IngestReportDTO{files_deleted=false, cleanup_pending=true, cleanup_id}`**；`E4003` 保留给孤儿清理与 retry 失败的同步返回
+- **原因**：前端 `pages/import.js` 的 catch 分支对所有非 `E2002` 错误统一提示「（已回滚，可重试）」，返回 409 会让用户以为数据没入库而去**重复导入**；且前端已实现 `files_deleted=false` 的渲染分支（"原文件删除失败，已加入待清理列表，数据不受影响"），200 + 报告才是对齐的实现。签字依据见 `C3-合稿与耦合收口.md` §5 D-7 行
+- **影响面**：`confirm` 端点错误语义；前端 catch 分支无需改动
+- **回归**：`tests/fault_injection/test_fi_disk_full.py` 之外的 B 线场景（删除失败入队由 B 线 `test_fi_delete_failure.py` 覆盖，接口已由 `DeleteFailureSink` / `NullSink` 稳定）
+- **批准**：xtgxiso；合稿评审待签
+
+### 2026-10-23 · C3-A 实施 · INTERNAL · D-8 备查与 `filelock.py` mypy 修复
+
+- **D-8（解释性澄清，不改代码语义）**：`ingesting` 是**内存态**，库里永远查不到——崩溃时 SQLite 自动回滚，批次回到 `prechecked`，不会留下永久 `ingesting` 脏状态（PRD 9.2 收口规则 4）。第二跳 `(ingesting) → {ingested}` 只存在于 `batch_guard` 矩阵的内存校验中，目的是让 `assert_transition(target=INGESTED)` 可验证
+- **对象**：`src/account_dashboard/infra/filelock.py`
+- **变更前**：`importlib.import_module("msvcrt")` 动态导入，`mypy` 在 Linux 上报 `module is installed, but missing library stubs or py.typed marker` ×4
+- **变更后**：改为 `sys.platform` 判据 + `TYPE_CHECKING` 分支的静态导入声明
+- **为什么契约不受影响**：锁行为逐分支等价（`LK_NBLCK`/`LK_UNLCK`/`flock` 调用序列不变），`test_buffer_file.py` 与 `test_startup.py` 全绿；这是 C1 遗留的 mypy 噪音，非契约变更
+- **影响面**：无（仅类型检查洁净度）
+- **回归**：`tests/unit/test_buffer_file.py`、`tests/integration/test_startup.py`、`mypy src` 64 文件零问题
+
 ---
 
 ## 4. 登记模板（复制使用）

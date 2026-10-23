@@ -1,8 +1,8 @@
 """C2 出口契约（从 B 线变体移植）：端点清单、信封形状、分页边界、删除失败入队。
 
 与业务行为用例（``test_staging_*.py``）分工：这里守的是**对外契约不被悄悄改坏** ——
-端点少一条前端就 404，C3 端点提前落进来说明越界，分页边界松了前端会传疯。
-这些断言在合稿前由 B 线变体维护，合稿后统一用真实样例驱动。
+端点少一条前端就 404，C3 端点落进来了说明越界（confirm / report 属 C3-A，
+``orphans/cleanup`` 属 C3-B，后者现在必须仍然缺席）。
 """
 
 from __future__ import annotations
@@ -32,6 +32,9 @@ EXPECTED_OPERATIONS = {
     ("get", f"{API_PREFIX}/staging/usage"),
     ("post", f"{API_PREFIX}/staging/ensure-dir"),
     ("get", f"{API_PREFIX}/staging/orphans"),
+    # C3-A：入库写路径的两个端点（FZ-3）
+    ("post", f"{API_PREFIX}/staging/batches/{{batch_id}}/confirm"),
+    ("get", f"{API_PREFIX}/staging/batches/{{batch_id}}/report"),
 }
 
 
@@ -46,7 +49,7 @@ def one_batch(upload) -> dict:
     return upload(FIXTURES_DIR / "alipay_sample_gb18030.csv")
 
 
-def test_fifteen_endpoints_registered(client: TestClient) -> None:
+def test_seventeen_endpoints_registered(client: TestClient) -> None:
     spec = client.get("/api/openapi.json").json()
     actual = {
         (method, path)
@@ -56,19 +59,15 @@ def test_fifteen_endpoints_registered(client: TestClient) -> None:
     }
 
     assert actual == EXPECTED_OPERATIONS
-    assert len(actual) == 15
+    assert len(actual) == 17
 
 
-def test_c3_endpoints_are_absent(client: TestClient) -> None:
-    """C3 的 confirm / report / cleanup 不得提前实现（越界即返工）。"""
+def test_c3b_endpoints_are_absent(client: TestClient) -> None:
+    """``orphans/cleanup`` 属 C3-B，不得在 C3-A 提前实现（越界即返工）。"""
     paths = set(client.get("/api/openapi.json").json()["paths"])
 
-    for reserved in (
-        f"{API_PREFIX}/staging/batches/{{batch_id}}/confirm",
-        f"{API_PREFIX}/staging/batches/{{batch_id}}/report",
-        f"{API_PREFIX}/staging/orphans/cleanup",
-    ):
-        assert reserved not in paths, f"{reserved} 属 C3，不得在 C2 提前实现"
+    for reserved in (f"{API_PREFIX}/staging/orphans/cleanup",):
+        assert reserved not in paths, f"{reserved} 属 C3-B，不得在 C3-A 提前实现"
 
 
 def test_error_envelope_shape(client: TestClient) -> None:

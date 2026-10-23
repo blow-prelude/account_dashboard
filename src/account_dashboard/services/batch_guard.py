@@ -1,11 +1,20 @@
-"""批次状态机（SDD §5.6 的 C2 子集）。
+"""批次状态机（SDD §5.6 的 C2+C3 全集）。
 
 用**表驱动**而不是 if-else：7 个状态 × 6 个动作要能被一条参数化用例全矩阵覆盖
 （U-BG-01），手写分支一定会漏。
 
-C2 只开放 parse / map / precheck / discard 四条动作；``ingest`` / ``confirm`` 明确
-留空 —— 任何在 C2 期间出现的入库状态流转都会得到 ``E2002``，这就是「本周期不写
-入库逻辑」的代码级保证。
+C2 只开放 parse / map / precheck / discard 四条动作；C3-A 补上 ``ingest`` /
+``confirm`` 两列（共 42 格）。两个动作的语义分工（矩阵里是两列，别混用）：
+
+* ``CONFIRM`` —— **用户视角**，跳跃式：``prechecked → ingested``。端点层
+  ``assert_transition(status, CONFIRM)`` 用它做"这个批次现在能确认吗"的第一道
+  判断（并发场景下它可能过期，真正的闸门是事务内的条件 UPDATE）；
+* ``INGEST`` —— **事务内部**，两跳：``prechecked → ingesting``（幂等闸门置位）、
+  ``ingesting → ingested``（提交前置位）。第二跳只在内存里校验 —— ``ingesting``
+  在库里查不到（D-8：闸门与写操作在同一事务，崩溃即回滚），但它必须存在于矩阵中，
+  否则 ``assert_transition(target=INGESTED)`` 会误判。
+
+其余 5 个状态 × ``{INGEST, CONFIRM}`` 全部为空 → ``E2002``。
 """
 
 from __future__ import annotations
@@ -72,7 +81,11 @@ ALLOWED: dict[tuple[BatchStatus, BatchAction], frozenset[BatchStatus]] = {
         (status, BatchAction.DISCARD): frozenset({BatchStatus.DISCARDED})
         for status in _DISCARDABLE
     },
-    # 入库：C3 才开放（此处留空是刻意的）
+    # 入库（C3-A）：CONFIRM 是用户视角的一跳；INGEST 是事务内部的两跳。
+    # 幂等由 IngestService 事务内的条件 UPDATE + rowcount 保证，矩阵只回答"合法吗"。
+    (BatchStatus.PRECHECKED, BatchAction.CONFIRM): frozenset({BatchStatus.INGESTED}),
+    (BatchStatus.PRECHECKED, BatchAction.INGEST): frozenset({BatchStatus.INGESTING}),
+    (BatchStatus.INGESTING, BatchAction.INGEST): frozenset({BatchStatus.INGESTED}),
 }
 
 

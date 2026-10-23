@@ -37,6 +37,7 @@ from account_dashboard.infra.parsers.encoding import decode_file
 from account_dashboard.infra.parsers.models import ParsedRow
 from account_dashboard.infra.parsers.registry import ParserRegistry
 from account_dashboard.models.enums import BatchAction, BatchStatus, Channel, DedupLabel
+from account_dashboard.models.ingest import IngestReportDTO
 from account_dashboard.models.internal import MAPPING_FIELDS, MappingSnapshot, MappingSpec
 from account_dashboard.models.staging import (
     BatchDetailDTO,
@@ -535,7 +536,7 @@ class ImportOrchestrator:
         不要改成返回 report 或加必填参数。
         """
         batch = self._load(batch_id)
-        snapshot = self._resolve_snapshot(batch, mapping_snapshot)
+        snapshot = self.resolve_snapshot(batch, mapping_snapshot)
         path = self._path_of(batch)
         result = self._registry.parse(
             path,
@@ -545,11 +546,16 @@ class ImportOrchestrator:
         )
         return result.rows
 
-    def _resolve_snapshot(
+    def resolve_snapshot(
         self,
         batch: BatchRow,
-        snapshot: MappingSnapshot | dict[str, Any] | None,
+        snapshot: MappingSnapshot | dict[str, Any] | None = None,
     ) -> MappingSnapshot:
+        """确定本次重放用的快照：显式传入 > 批次上预检固化那份。
+
+        C3 入库事务内读的是**批次字段里的快照**并原样回写（D-5），绝不重读用户
+        当前映射 —— 否则"用来入库的那份"与"存下来的那份"可能不是同一串字节。
+        """
         if isinstance(snapshot, MappingSnapshot):
             return snapshot
         if isinstance(snapshot, dict):
@@ -616,6 +622,12 @@ class ImportOrchestrator:
             mapping_snapshot=json.loads(batch.mapping_snapshot) if batch.mapping_snapshot else None,
             parse_meta=_parse_meta(batch),
             file_exists=self._buffer.exists(batch.stored_name),
+            # C3-A：已入库批次附带导入报告（前端报告页优先读它，省一次 GET /report）
+            report=IngestReportDTO.from_stored(
+                batch.report_json,
+                pending_delete_flag=batch.pending_delete_flag,
+                committed_at=batch.committed_at,
+            ),
         )
 
 

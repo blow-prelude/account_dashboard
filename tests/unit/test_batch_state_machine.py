@@ -1,7 +1,8 @@
-"""批次状态机（U-BG-01，SDD §5.6 / C2 §4.5）。
+"""批次状态机（U-BG-01，SDD §5.6 / C2 §4.5 / C3-A §4.1）。
 
 7 个状态 × 6 个动作 = 42 组全矩阵参数化：合法的通过，非法的全部 ``E2002``。
-这条用例同时是「C2 不写入库逻辑」的自证：``ingest`` / ``confirm`` 在任何状态下都是空的。
+C3-A 起 ``ingest`` / ``confirm`` 两列开放（C2 期间它们是全空的，那时的
+"closed" 用例已随之替换为 C3 的矩阵断言）。
 """
 
 from __future__ import annotations
@@ -33,16 +34,43 @@ def test_transition_matrix(status: BatchStatus, action: BatchAction) -> None:
         assert excinfo.value.http_status == 409
 
 
-def test_ingest_is_closed_in_c2() -> None:
-    for status in STATUSES:
-        assert not batch_guard.can_transition(status, BatchAction.INGEST)
-        assert not batch_guard.can_transition(status, BatchAction.CONFIRM)
+def test_ingest_and_confirm_columns() -> None:
+    """C3-A：``ingest`` / ``confirm`` 的合法单元格只有三个，其余全空。"""
+    assert batch_guard.targets(BatchStatus.PRECHECKED, BatchAction.CONFIRM) == {
+        BatchStatus.INGESTED
+    }
+    assert batch_guard.targets(BatchStatus.PRECHECKED, BatchAction.INGEST) == {
+        BatchStatus.INGESTING
+    }
+    # 第二跳只在内存里校验（ingesting 在库里查不到，D-8），但必须存在于矩阵
+    assert batch_guard.targets(BatchStatus.INGESTING, BatchAction.INGEST) == {
+        BatchStatus.INGESTED
+    }
+    closed = [s for s in STATUSES if s not in (BatchStatus.PRECHECKED, BatchStatus.INGESTING)]
+    for status in closed:
+        for action in (BatchAction.INGEST, BatchAction.CONFIRM):
+            assert not batch_guard.can_transition(status, action), f"{status} × {action} 应为空"
+
+
+def test_confirm_on_terminal_states_rejected() -> None:
+    """``ingested`` / ``discarded`` / ``failed`` 上 confirm 全 ``E2002``。"""
+    for status in (BatchStatus.INGESTED, BatchStatus.DISCARDED, BatchStatus.FAILED):
+        with pytest.raises(BusinessRuleError) as excinfo:
+            batch_guard.assert_transition(status, BatchAction.CONFIRM)
+        assert excinfo.value.code.value == "E2002"
 
 
 def test_terminal_states_accept_nothing() -> None:
-    for status in (BatchStatus.INGESTED, BatchStatus.DISCARDED, BatchStatus.INGESTING):
+    for status in (BatchStatus.INGESTED, BatchStatus.DISCARDED):
         for action in ACTIONS:
             assert not batch_guard.can_transition(status, action)
+
+
+def test_ingesting_is_transient_but_in_matrix() -> None:
+    """``ingesting`` 是事务内瞬态：对外只认 INGEST 第二跳，其他动作一律拒绝。"""
+    for action in ACTIONS:
+        expected = action is BatchAction.INGEST
+        assert batch_guard.can_transition(BatchStatus.INGESTING, action) is expected
 
 
 def test_parse_may_fail_only_from_parseable_states() -> None:
