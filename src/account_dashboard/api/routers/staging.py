@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, File, Form, Query, UploadFile
 
-from account_dashboard.api.deps import get_orchestrator
+from account_dashboard.api.deps import get_cleanup_service, get_orchestrator
 from account_dashboard.api.errors import EntryValidationError, ErrorCode
 from account_dashboard.api.response import ApiResponse, Page, ok
 from account_dashboard.api.validators import (
@@ -18,6 +18,7 @@ from account_dashboard.api.validators import (
     validate_upload_meta,
 )
 from account_dashboard.models.enums import BatchStatus, Channel
+from account_dashboard.models.ingest import OrphanCleanupDTO
 from account_dashboard.models.staging import (
     BatchDetailDTO,
     BatchDTO,
@@ -26,6 +27,7 @@ from account_dashboard.models.staging import (
     EnsureDirDTO,
     MappingReq,
     MappingResultDTO,
+    OrphanCleanupReq,
     OrphanFileDTO,
     OverrideDTO,
     OverrideReq,
@@ -36,6 +38,7 @@ from account_dashboard.models.staging import (
     TemplateDTO,
     TemplateReq,
 )
+from account_dashboard.services.cleanup_service import CleanupService
 from account_dashboard.services.import_orchestrator import PREVIEW_MAX_LIMIT, ImportOrchestrator
 
 router = APIRouter(prefix="/api/v1/staging", tags=["staging"])
@@ -169,6 +172,19 @@ def list_orphans(
     orchestrator: ImportOrchestrator = Depends(get_orchestrator),
 ) -> ApiResponse[list[OrphanFileDTO]]:
     return ok(orchestrator.orphans())
+
+
+@router.post("/orphans/cleanup", response_model=ApiResponse[OrphanCleanupDTO])
+def cleanup_orphans(
+    payload: OrphanCleanupReq,
+    cleanup: CleanupService = Depends(get_cleanup_service),
+) -> ApiResponse[OrphanCleanupDTO]:
+    """清理孤儿文件（前端"清理"按钮已调用，C3-B 补后端）。
+
+    三重白名单（路径防穿越 → 名字形态 → 不在已知批次）见
+    ``CleanupService.cleanup_orphans``；任一不过整体拒绝，验证阶段不删文件。
+    """
+    return ok(cleanup.cleanup_orphans(payload.names))
 
 
 @router.get("/usage", response_model=ApiResponse[BufferUsageDTO])

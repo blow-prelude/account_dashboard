@@ -160,6 +160,36 @@
 - **影响面**：无（尚未实现）
 - **回归用例**：无
 
+### 2026-10-23 · C3-B · ADDITIVE · FZ-3 追溯与清理 DTO 首次落地 + 7 个新端点
+
+- **对象**：`IngestReportDTO` / `IngestReportDetailDTO` / `SkippedRowDTO` / `RawMonthDTO` / `RawRecordDTO` / `RawRecordDetailDTO` / `TraceTransactionDTO` / `TraceDTO` / `CleanupItemDTO` / `OrphanCleanupDTO` / `OrphanCleanupReq`
+- **新增端点（7 个，均在 `/api/v1` 前缀下）**：
+  - `POST /staging/orphans/cleanup`：孤儿清理三重白名单后的批量删除（`OrphanCleanupReq.names` 1~200 个）
+  - `GET /maintenance/cleanup`（`?status=pending|done|abandoned`）与 `POST /maintenance/cleanup/{cleanup_id}/retry`：待清理队列的只读浏览与手动重试（retry 幂等）
+  - `GET /raw/months`：月份清单，`month` 为 `2026_06`（**无 `raw_` 前缀**，前端按 `x.month.slice(5)` 展示）
+  - `GET /raw/{yyyy_mm}/records`：分页（`page_size` 10~200，越界 `E1010`；缺月返回空数组而非 404）；**列表项不含 `raw_payload`**
+  - `GET /raw/records/{record_id}`：详情，`raw_payload` 为整行 JSON 原貌；未知 id → 404 `E2001`
+  - `GET /transactions/{transaction_id}/trace`：四块追溯；未知流水 → 404 `E2010`
+- **null 语义（新增定义，属 ADDITIVE）**：`TraceDTO` 的 `batch` / `raw_record` / `mapping_snapshot` **允许为 null** 且整体仍返回 200 —— 这是数据分叉信号（服务端记 WARN），不一律报错；`transaction` 缺失才是 404。`RawMonthDTO.month` 与 `/raw/{yyyy_mm}` 路径参数同形（`2026_06`），与表名 `raw_2026_06` 的换算只经 `infra/raw_naming.py` 单一权威
+- **`TraceTransactionDTO` 的 11 个双写字段**：`batch_id, row_no, occurred_at, amount_cents, direction, counterparty, item, txn_type, payment_method, channel, fp`，与 `RawRecordDTO` 同名同义（raw 与 transaction 的双写口径）；另含 `id` / `status` 两个主数据侧管理字段。C4 扩展 `TransactionDTO` 时**必须保留这些字段名**
+- **`IngestReportDTO`**（FZ-3 主体，随 A 线 confirm 落地时一并冻结）：`finished_at` 对应 DB 列 `committed_at`（DTO 按前端用语改名）；`monthly` 的键为 `raw_2026_06` 全表名（与 `RawMonthDTO.month` 少前缀，两处用途不同：前者对内、后者对外）
+- **错误码**：无新增，仍为 FZ-1 的 37 值；E1011/E2010/E3002/E4003 均为既有码值在新场景的启用
+- **影响面**：前端新增原始数据浏览页与追溯页；`pages/buffer.js` 的"清理"按钮自 C2 起就在调 `POST /staging/orphans/cleanup`，本次补齐后端
+- **回归**：`tests/integration/test_staging_contract.py`（16 端点集合）、`test_raw_months.py`、`test_raw_records_pagination.py`、`test_trace_back.py`、`test_trace_missing_blocks.py`、`test_orphan_whitelist.py`、`test_delete_intent.py`、`test_cleanup_retry.py`、`test_reconcile_order.py`、`test_reconcile_orphan.py`、`test_reconcile_not_blocking.py`、`test_delete_with_retry_windows.py`、`tests/fault_injection/test_fi_crash_after_commit.py`
+
+### 2026-10-23 · C3-B · INTERNAL · 启动对账升级为写动作（D-7 / D-8），`ReconciliationReport` 只加字段
+
+- **对象**：`infra/reconciliation.py`、`repositories/cleanup_repo.py`、`services/cleanup_service.py`、`infra/buffer_file.py`
+- **变更前**：C1 起的 `run_startup_reconciliation(database, paths)` 只做只读清点（四步均为计数）
+- **变更后**：升级为**带自愈动作**的对账，签名与返回类型不变，`main.py` 无需改动。四步（顺序不可换）：① `ingesting` → `prechecked` 重置（D-8 保险丝，命中即 WARN）② `ingested + flag=1` 补删（**一次尝试**，成功清零、失败入队）③ `ingested + flag=0` 但文件仍存在 → WARN + 入队，**不自动删** ④ 孤儿扫描只报告。任一步抛异常只记 WARN 后继续——**不阻塞启动**是硬约束
+- **`ReconciliationReport` 新增 4 个字段**（FZ-1 的前四个字段 `interrupted_batches` / `pending_deletes` / `orphans` / `missing_buffer_dir` 一字未动，`/health.backlog` 只消费前四个，不受影响）：`inconsistent_batches`、`deleted_files`、`enqueued_files`、`orphan_names`
+- **D-7（清零与入队是两个独立小事务）**：`CleanupService.on_committed` 中删文件 → 成功则独立事务清零（`flag=0` + `deleted_at`），失败则独立事务入队；两者互斥不合并，任一半途失败都能被下次对账 ② 幂等自愈
+- **D-8（删除失败不回流解状态）**：批次提交后删文件失败，批次**仍保持 `ingested`**（用户可见数据不受影响），失败路径入 `cleanup_queue` 等用户手动 retry；不对批次做任何回退
+- **`cleanup_queue` 表结构零变化**（C1 已建表）；`file_name` 不是列，由 `list_items` 的 LEFT JOIN `staging_batch` 派生
+- **契约不变性**：`UPDATE staging_batch` 的实际 SQL 只出现在 `staging_repo.py` 与 `cleanup_repo.py`（后者仅 `pending_delete_flag` 清零与 `status='ingesting'` 两种模式）；本线无 `INSERT INTO "transaction"`、无运行时 `CREATE TABLE raw_*`（`raw_*` 表由 A 线 `seed`/迁移负责）
+- **影响面**：`/health` 的 `backlog` 读数口径不变；启动耗时增加一次文件系统遍历（可接受，已在 `test_reconcile_not_blocking.py` 断言不阻塞）
+- **回归**：`tests/fault_injection/test_fi_crash_after_commit.py`（故障注入 2 进 CI）、`test_reconcile_order.py`（spy 锁定 ①②③④ 调用序）、`test_reconcile_not_blocking.py`（3 个文件全删失败仍起服务）
+
 ---
 
 ## 4. 登记模板（复制使用）

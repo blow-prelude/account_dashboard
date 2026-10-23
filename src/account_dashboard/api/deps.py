@@ -14,7 +14,10 @@ from account_dashboard.infra.buffer_file import BufferFileManager
 from account_dashboard.infra.paths import DataPaths
 from account_dashboard.repositories.database import Database
 from account_dashboard.repositories.unit_of_work import UnitOfWork
+from account_dashboard.services.cleanup_service import CleanupService
 from account_dashboard.services.import_orchestrator import ImportOrchestrator
+from account_dashboard.services.raw_browse_service import RawBrowseService
+from account_dashboard.services.trace_service import TraceService
 
 
 def get_database(request: Request) -> Database:
@@ -56,3 +59,24 @@ def get_orchestrator(request: Request) -> Iterator[ImportOrchestrator]:
         buffer=BufferFileManager(paths.buffer_dir),
         database=database,
     )
+
+
+def get_cleanup_service(request: Request) -> Iterator[CleanupService]:
+    """删除意图 / 待清理队列的装配点（C3-B）。
+
+    合稿 M2 时 A 线把 ``DeleteFailureSink`` 的 ``NullSink`` 换成本服务
+    —— 那是两条线唯一的咬合点，改动只此一处。
+    """
+    database = get_database(request)
+    paths = get_paths(request)
+    yield CleanupService(uow=UnitOfWork(database), buffer=BufferFileManager(paths.buffer_dir))
+
+
+def get_raw_browse_service(request: Request) -> Iterator[RawBrowseService]:
+    """原始库只读浏览的装配点（C3-B）。"""
+    yield RawBrowseService(uow=UnitOfWork(get_database(request)))
+
+
+def get_trace_service(request: Request) -> Iterator[TraceService]:
+    """批次追溯的装配点（C3-B）。"""
+    yield TraceService(uow=UnitOfWork(get_database(request)))
