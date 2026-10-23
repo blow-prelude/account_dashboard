@@ -131,6 +131,29 @@ def test_original_variants_are_preserved(
     assert json.loads(str(row4["raw_payload"]))["收/付款方式"] == "余额宝&红包"
 
 
+def test_wechat_refund_variant_is_preserved(
+    client: TestClient, upload, fixtures_dir: Path, db: Database
+) -> None:
+    """微信样例的退款变体（``已全额退款``）经 xlsx 解析后原样进 raw_payload。
+
+    合稿验收 #5 要求"含退款变体"：支付宝侧是 ``退款成功``（上一用例），
+    微信侧是 ``已全额退款`` —— 两个渠道的解析器不同，都不得清洗状态文本。
+    """
+    batch = upload(fixtures_dir / "wechat_sample_sanitized.xlsx")
+    batch_id = str(batch["id"])
+    client.put(f"{PREFIX}/batches/{batch_id}/mapping", json=_mapping(client, batch_id))
+    client.post(f"{PREFIX}/batches/{batch_id}/precheck")
+    response = client.post(f"{PREFIX}/batches/{batch_id}/confirm")
+    assert response.status_code == 200, response.text
+
+    row = db.query_one(
+        "SELECT raw_payload FROM raw_2026_06 WHERE raw_payload LIKE '%已全额退款%' LIMIT 1"
+    )
+    assert row is not None, "微信样例的已全额退款行必须原样进入 raw_payload"
+    payload = json.loads(str(row["raw_payload"]))
+    assert "已全额退款" in payload.values()
+
+
 def test_raw_and_transaction_fields_agree(
     client: TestClient, upload, fixtures_dir: Path, db: Database
 ) -> None:

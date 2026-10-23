@@ -21,7 +21,7 @@
 |--------|------|------|------|
 | FZ-1 | C1 收口 | `ApiResponse`、`PageMeta`、`Page`、`ErrorCode`（37 值）、退出码 1~5、`/health` | **已冻结 v1（2026-10-22）** |
 | FZ-2 | C2 收口 | `BatchDTO`、`BatchDetailDTO`、`ParseMetaDTO`、`MappingReq`、`PrecheckResultDTO`、7 个批次状态 | **已冻结 v1（2026-10-22）** |
-| FZ-3 | C3 收口 | `IngestReportDTO`、`RawRecordDTO`、`raw_YYYY_MM` 列定义、`pending_delete_flag`、7×6 状态矩阵 | 待冻结 |
+| FZ-3 | C3 收口 | `IngestReportDTO`、`RawRecordDTO`、`raw_YYYY_MM` 列定义、`pending_delete_flag`、7×6 状态矩阵 | **已冻结 v1（2026-10-23）** |
 | FZ-4 | C4 收口 | 12 指标 DTO、`base_filter` 语义、`period/anchor` 格式、`null` 语义、三入口同源 | 待冻结 |
 
 > 「待冻结」在对应周期出口检查表通过后改为「已冻结 v1」，并在此追加条目。
@@ -228,6 +228,37 @@
 - **契约不变性**：`UPDATE staging_batch` 的实际 SQL 只出现在 `staging_repo.py` 与 `cleanup_repo.py`（后者仅 `pending_delete_flag` 清零与 `status='ingesting'` 两种模式）；本线无 `INSERT INTO "transaction"`、无运行时 `CREATE TABLE raw_*`（`raw_*` 表由 A 线 `seed`/迁移负责）
 - **影响面**：`/health` 的 `backlog` 读数口径不变；启动耗时增加一次文件系统遍历（可接受，已在 `test_reconcile_not_blocking.py` 断言不阻塞）
 - **回归**：`tests/fault_injection/test_fi_crash_after_commit.py`（故障注入 2 进 CI）、`test_reconcile_order.py`（spy 锁定 ①②③④ 调用序）、`test_reconcile_not_blocking.py`（3 个文件全删失败仍起服务）
+
+### 2026-10-23 · C3 合稿 · INTERNAL · D-5 备查（`mapping_snapshot` 两段式冻结）
+
+- **对象**：`staging_batch.mapping_snapshot` 的写入时机与只读边界
+- **裁决**（D-5）：**两段式** —— C2 的预检写入保留（供预检可重放、重解析置 `NULL`）；C3 在**入库事务内**读取该快照、重放入库、并以 `sort_keys=True` 原样回写，此后该字段**只读**
+- **依据**：I11 要的是"入库时刻的不可变快照"。事务内回写保证"用来入库的那份"与"存下来的那份"是同一串字节；崩溃回滚时两份都不留残局
+- **守卫**（合稿落地）：`UPDATE ... SET mapping_snapshot` 全库只允许出现在 `staging_repo.update_precheck`（C2，置值/NULL）与 `staging_repo.finish_ingest`（C3，冻结）两处，由 `test_write_path_gates.py` 的 grep 门禁强制
+- **为什么是 INTERNAL 不是契约变更**：字段名、类型、`null` 语义均未变，变的是写入时机与只读边界，属实现层澄清
+- **影响面**：C4 重算依赖该快照得到与入库一致的 `ParsedRow`；B 线 `trace` 的 `mapping_snapshot` 块直接读它
+- **回归**：`test_ingest_multi_month.py`（D-5 冻结回写断言）、`test_write_path_gates.py`（门禁 2）、`test_trace_back.py`（四块含快照）
+
+### 2026-10-23 · C3 合稿 · ADDITIVE · FZ-3 冻结 v1（10 DTO + 10 端点 + 三处合稿澄清）
+
+- **对象**：`models/ingest.py` 全量 10 个 DTO、`ingest_ports.py` 协议、`raw_YYYY_MM` 表与索引、`pending_delete_flag` 生命周期、7×6 状态矩阵、C3 全部 10 个新端点
+- **冻结内容**（Gate 0 §3.1 规格 + 两线实现取并集，逐字段核对）：
+  - `IngestReportDTO{batch_id,total,inserted,skipped_dup,skipped_invalid,pending,monthly,files_deleted,cleanup_pending,cleanup_id,finished_at}`；`monthly` 键为 `raw_YYYY_MM`，`RawMonthDTO.month` 为 `YYYY_MM`（两处不同构有意为之）；`finished_at` ≠ DB 列 `committed_at`
+  - `IngestReportDetailDTO.skipped` 仅 `include_skipped=true` 填充；`SkippedRowDTO.reason ∈ {AMOUNT_PARSE,TIME_PARSE,DUP}`，`raw` 截断 64 字符
+  - `RawRecordDTO` 15 字段（列表不带 `raw_payload`）；`RawRecordDetailDTO` 加整行 JSON 原貌
+  - `TraceDTO` 四块：`transaction` 必填，`batch` / `raw_record` / `mapping_snapshot` 可空且整体仍 200（数据分叉信号，服务端记 WARN）；未知流水 → 404 `E2010`
+  - `CleanupItemDTO.file_name` 由 LEFT JOIN `staging_batch` 派生（DDL 无此列）；`OrphanCleanupReq.names` 1~200
+  - `DeleteFailureSink.on_committed(batch_id, file_path) -> DeleteOutcome`；`cleanup_id` 在 `deleted=False` 时必填；Protocol 加 `runtime_checkable`
+  - 端点 ×10：confirm / report（A）；orphans/cleanup、maintenance/cleanup、maintenance/cleanup/{id}/retry、raw/months、raw/{yyyy_mm}/records、raw/records/{id}、transactions/{id}/trace（B）
+- **合稿期三处澄清（均为 ADDITIVE，已两侧同改）**：
+  1. **`TraceTransactionDTO` 保留 B 的 11 个双写字段**（规格 10 字段 + `txn_type`/`payment_method`/`fp`）：B 的追溯用例按 11 字段断言 raw 与 transaction 一致，属对 Gate 0 规格的 ADDITIVE 扩展；C4 扩展 `TransactionDTO` 时这 11 个名字仍须保留
+  2. **`raw_naming` 抛 infra `RawTableError`**（码值 `E3002` 不变，由 `error_mapping` 翻成 `TransactionError` 出海）：A 原为直抛 `TransactionError`，合并时收敛回 infra 房风格（C2 起「infra 抛 InfraError、业务层翻译」）；`raw_repo.table_exists` 同步。翻译契约由 `tests/unit/test_error_mapping.py` 钉住
+  3. **`ingest_ports.DeleteFailureSink` 加 `@runtime_checkable`**：纯增强，不影响既有调用
+- **D-5 ~ D-8 的状态**：四条裁决全部登记——D-5（`mapping_snapshot` 两段式冻结，INTERNAL 备查，见上一条）、D-6（不可解析行进 `report_json.skipped[]`，随 A/B 两条 FZ-3 落地登记）、D-7（删文件失败返回 200 + `files_deleted=false`，ADDITIVE 偏离已由 A 线登记并签字，合稿 M2/M5 复验通过）、D-8（`ingesting` 仅内存态，INTERNAL 澄清已由 B 线登记）。均随本冻结转正
+- **未加入**：`/stats/*`、`/reports/*`、`/pending`、`/rules`、`/settings`、`/backups` —— 属 C4/C5，`test_staging_contract.py` 的缺席断言已改守这些路径
+- **影响面**：前端导入向导第三步、原始数据浏览页、追溯页、缓冲区管理页；C4 只读 `transaction` 与 `raw_read_repo.iter_month`
+- **回归**：397 passed / 2 skipped / 1 failed（`test_unc_path_rejected` 为 C1 起已知 Windows 专属用例）；M3 真实样例 689/669 逐月相等；M4 四条故障注入全绿 + `idx_raw_YYYY_MM_batch` 存在；M5 崩溃自愈闭环通过；覆盖率 `ingest_service` 98% / `cleanup_service` 100%；`ruff` / `mypy`（73 文件）零问题；前端自检通过
+- **批准**：xtgxiso（合稿执行），待项目负责人复核
 
 ---
 

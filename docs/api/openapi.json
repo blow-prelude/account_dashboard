@@ -131,6 +131,58 @@
         "title": "ApiResponse[HealthDTO]",
         "type": "object"
       },
+      "ApiResponse_IngestReportDTO_": {
+        "properties": {
+          "code": {
+            "default": "OK",
+            "title": "Code",
+            "type": "string"
+          },
+          "data": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/IngestReportDTO"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "message": {
+            "default": "",
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "title": "ApiResponse[IngestReportDTO]",
+        "type": "object"
+      },
+      "ApiResponse_IngestReportDetailDTO_": {
+        "properties": {
+          "code": {
+            "default": "OK",
+            "title": "Code",
+            "type": "string"
+          },
+          "data": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/IngestReportDetailDTO"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "message": {
+            "default": "",
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "title": "ApiResponse[IngestReportDetailDTO]",
+        "type": "object"
+      },
       "ApiResponse_MappingResultDTO_": {
         "properties": {
           "code": {
@@ -791,6 +843,16 @@
             "title": "Pending Count",
             "type": "integer"
           },
+          "report": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/IngestReportDTO"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "status": {
             "$ref": "#/components/schemas/BatchStatus"
           },
@@ -1072,6 +1134,157 @@
         "title": "HealthDTO",
         "type": "object"
       },
+      "IngestReportDTO": {
+        "description": "导入报告四数字（前端报告页的唯一数据源，EX-22：不用预检数字替代）。",
+        "properties": {
+          "batch_id": {
+            "title": "Batch Id",
+            "type": "string"
+          },
+          "cleanup_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cleanup Id"
+          },
+          "cleanup_pending": {
+            "default": false,
+            "title": "Cleanup Pending",
+            "type": "boolean"
+          },
+          "files_deleted": {
+            "default": true,
+            "title": "Files Deleted",
+            "type": "boolean"
+          },
+          "finished_at": {
+            "title": "Finished At",
+            "type": "string"
+          },
+          "inserted": {
+            "title": "Inserted",
+            "type": "integer"
+          },
+          "monthly": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Monthly",
+            "type": "object"
+          },
+          "pending": {
+            "title": "Pending",
+            "type": "integer"
+          },
+          "skipped_dup": {
+            "title": "Skipped Dup",
+            "type": "integer"
+          },
+          "skipped_invalid": {
+            "default": 0,
+            "title": "Skipped Invalid",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "batch_id",
+          "total",
+          "inserted",
+          "skipped_dup",
+          "pending",
+          "finished_at"
+        ],
+        "title": "IngestReportDTO",
+        "type": "object"
+      },
+      "IngestReportDetailDTO": {
+        "description": "``report?include_skipped=true`` 时才填 ``skipped``（D-6 的明细）。",
+        "properties": {
+          "batch_id": {
+            "title": "Batch Id",
+            "type": "string"
+          },
+          "cleanup_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cleanup Id"
+          },
+          "cleanup_pending": {
+            "default": false,
+            "title": "Cleanup Pending",
+            "type": "boolean"
+          },
+          "files_deleted": {
+            "default": true,
+            "title": "Files Deleted",
+            "type": "boolean"
+          },
+          "finished_at": {
+            "title": "Finished At",
+            "type": "string"
+          },
+          "inserted": {
+            "title": "Inserted",
+            "type": "integer"
+          },
+          "monthly": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Monthly",
+            "type": "object"
+          },
+          "pending": {
+            "title": "Pending",
+            "type": "integer"
+          },
+          "skipped": {
+            "items": {
+              "$ref": "#/components/schemas/SkippedRowDTO"
+            },
+            "title": "Skipped",
+            "type": "array"
+          },
+          "skipped_dup": {
+            "title": "Skipped Dup",
+            "type": "integer"
+          },
+          "skipped_invalid": {
+            "default": 0,
+            "title": "Skipped Invalid",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "batch_id",
+          "total",
+          "inserted",
+          "skipped_dup",
+          "pending",
+          "finished_at"
+        ],
+        "title": "IngestReportDetailDTO",
+        "type": "object"
+      },
       "MappingReq": {
         "description": "列索引映射；``-1`` 或 ``None`` 表示未映射。\n\n``amount_scale`` 语义：``1`` 表示原始列单位是**元**（默认），\n``100`` 表示原始列单位是**分**（个别银行导出如此）。",
         "properties": {
@@ -1250,7 +1463,6 @@
             "type": "array"
           },
           "removed": {
-            "default": [],
             "items": {
               "type": "string"
             },
@@ -1946,6 +2158,7 @@
         "type": "object"
       },
       "RawRecordDTO": {
+        "description": "原始库一行的只读投影（列表不带 ``raw_payload``，5 万行时 JSON 会爆）。",
         "properties": {
           "amount_cents": {
             "title": "Amount Cents",
@@ -2214,6 +2427,47 @@
         "title": "RemovedDTO",
         "type": "object"
       },
+      "SkippedRowDTO": {
+        "description": "被跳过行的明细（D-6：不可解析行既不写 raw 也不写 transaction，报告是唯一留痕）。",
+        "properties": {
+          "field": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Field"
+          },
+          "raw": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Raw"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "row_no": {
+            "title": "Row No",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "row_no",
+          "reason"
+        ],
+        "title": "SkippedRowDTO",
+        "type": "object"
+      },
       "TemplateDTO": {
         "properties": {
           "channel": {
@@ -2287,6 +2541,7 @@
         "type": "object"
       },
       "TraceDTO": {
+        "description": "批次追溯四块（C3 基线原为三块，补 ``transaction`` 后前端已按四块实现）。",
         "properties": {
           "batch": {
             "anyOf": [
@@ -2873,6 +3128,49 @@
         ]
       }
     },
+    "/api/v1/staging/batches/{batch_id}/confirm": {
+      "post": {
+        "description": "确认入库：单事务双写 + 事务外删文件。重复确认 → 409 E2002。",
+        "operationId": "confirm_batch_api_v1_staging_batches__batch_id__confirm_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "batch_id",
+            "required": true,
+            "schema": {
+              "title": "Batch Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_IngestReportDTO_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Confirm Batch",
+        "tags": [
+          "ingest"
+        ]
+      }
+    },
     "/api/v1/staging/batches/{batch_id}/discard": {
       "post": {
         "operationId": "discard_batch_api_v1_staging_batches__batch_id__discard_post",
@@ -3220,6 +3518,59 @@
         "summary": "Preview Batch",
         "tags": [
           "staging"
+        ]
+      }
+    },
+    "/api/v1/staging/batches/{batch_id}/report": {
+      "get": {
+        "description": "导入报告；``skipped[]`` 明细仅 ``include_skipped=true`` 时返回（D-6）。",
+        "operationId": "get_batch_report_api_v1_staging_batches__batch_id__report_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "batch_id",
+            "required": true,
+            "schema": {
+              "title": "Batch Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "include_skipped",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Include Skipped",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_IngestReportDetailDTO_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Batch Report",
+        "tags": [
+          "ingest"
         ]
       }
     },
