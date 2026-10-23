@@ -22,7 +22,7 @@ from dataclasses import dataclass
 from itertools import islice
 from typing import Any
 
-from account_dashboard.errors import ErrorCode, TransactionError
+from account_dashboard.infra.errors import RawTableError
 from account_dashboard.infra.raw_naming import RAW_MONTH_RE, table_name
 from account_dashboard.models.enums import Direction
 
@@ -167,8 +167,7 @@ def _is_raw_table(name: str) -> bool:
 def table_exists(conn: sqlite3.Connection, table: str) -> bool:
     """表存在性检查（不执行任何写操作；B 线「缺月返回空」也走这条）。"""
     if not _is_raw_table(table):
-        raise TransactionError(
-            ErrorCode.RAW_TABLE_ERROR,
+        raise RawTableError(
             "原始库表名格式不合法",
             detail={"table": table},
         )

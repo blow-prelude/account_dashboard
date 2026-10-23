@@ -10,6 +10,7 @@ from pathlib import Path
 
 from account_dashboard.api.errors import EntryValidationError, ErrorCode
 from account_dashboard.infra.buffer_file import ALLOWED_EXTENSIONS, MAX_FILE_BYTES
+from account_dashboard.infra.raw_naming import RAW_MONTH_RE
 
 ALLOWED_EXT = ALLOWED_EXTENSIONS
 ALLOWED_MIME = frozenset(
@@ -61,6 +62,17 @@ def validate_page(page: int, page_size: int) -> None:
         raise EntryValidationError(
             ErrorCode.INVALID_PAGINATION, f"每页条数必须在 {low}~{high} 之间"
         )
+
+
+def validate_month(month: str) -> str:
+    """``/raw/{yyyy_mm}`` 的路径参数：``YYYY_MM``（无 ``raw_`` 前缀，K2）。"""
+    if not RAW_MONTH_RE.match(month):
+        raise EntryValidationError(
+            ErrorCode.INVALID_ENUM_VALUE,
+            "月份格式应为 YYYY_MM（如 2026_06）",
+            detail={"month": month},
+        )
+    return month
 
 
 def validate_limit(limit: int, *, maximum: int) -> int:

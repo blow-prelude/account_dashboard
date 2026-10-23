@@ -1,8 +1,12 @@
 """raw_payload 保真（I7 / C3-A §6.1 出口检查表）。
 
-抽 5 条 ``raw_payload`` 与重放得到的 ``ParsedRow.payload`` 逐项一致；
-原文件里的变体（``退款成功`` 状态、订单号尾部 Tab、``余额宝&红包``）必须
-原样保留 —— 不做单位换算、不清洗文本。
+抽 5 条 ``raw_payload`` 与**同一份快照重新解析**得到的 ``ParsedRow.payload``
+逐项一致；原文件里的变体（``退款成功`` 状态、订单号尾部 Tab、``余额宝&红包``）
+必须原样保留 —— 不做单位换算、不清洗文本。
+
+合稿备注：M2 后 confirm 走真实 CleanupService，缓冲区文件在提交后被删，
+因此「重放」不能依赖 buffer 里还有文件 —— 直接用冻结快照解析**原始 fixture**
+（与上传进缓冲区的字节一致），既验证保真，也验证 D-5 快照的可重放性。
 """
 
 from __future__ import annotations
@@ -13,11 +17,9 @@ from typing import Any
 
 from fastapi.testclient import TestClient
 
-from account_dashboard.infra.buffer_file import BufferFileManager
-from account_dashboard.infra.paths import DataPaths
+from account_dashboard.infra.parsers.registry import default_registry
+from account_dashboard.models.internal import MappingSnapshot
 from account_dashboard.repositories.database import Database
-from account_dashboard.repositories.unit_of_work import UnitOfWork
-from account_dashboard.services.import_orchestrator import ImportOrchestrator
 
 PREFIX = "/api/v1/staging"
 SAMPLE = "alipay_sample_gb18030.csv"
@@ -55,16 +57,29 @@ def _prepare_and_confirm(client: TestClient, upload, fixtures_dir: Path) -> tupl
     return batch_id, fixtures_dir / SAMPLE
 
 
+def _replay_from_fixture(
+    db: Database, batch_id: str, fixtures_dir: Path
+) -> dict[int, Any]:
+    """用入库时冻结的快照重新解析原始 fixture（缓冲区文件已被真实删除）。"""
+    row = db.query_one("SELECT mapping_snapshot FROM staging_batch WHERE id = ?", (batch_id,))
+    assert row is not None
+    snapshot = MappingSnapshot.from_dict(json.loads(str(row["mapping_snapshot"])))
+    result = default_registry().parse(
+        fixtures_dir / SAMPLE,
+        mapping=snapshot.as_mapping_spec(),
+        adapter_name=snapshot.adapter,
+        allow_partial=True,
+    )
+    return {parsed.row_no: parsed for parsed in result.rows}
+
+
 def test_raw_payload_matches_original_rows(
-    client: TestClient, upload, fixtures_dir: Path, db: Database, paths: DataPaths
+    client: TestClient, upload, fixtures_dir: Path, db: Database
 ) -> None:
     batch_id, _ = _prepare_and_confirm(client, upload, fixtures_dir)
 
-    # 重放得到与入库完全一致的 ParsedRow（同一份快照）
-    orchestrator = ImportOrchestrator(
-        uow=UnitOfWork(db), buffer=BufferFileManager(paths.buffer_dir), database=db
-    )
-    rows = {row.row_no: row for row in orchestrator.replay(batch_id)}
+    # 同一份快照重新解析：与入库完全一致的 ParsedRow（D-5 的可重放性）
+    rows = _replay_from_fixture(db, batch_id, fixtures_dir)
     assert len(rows) == 669
 
     # 每个月份抽一行，共 5 条，逐项比对

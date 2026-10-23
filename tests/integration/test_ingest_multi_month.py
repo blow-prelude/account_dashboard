@@ -84,7 +84,7 @@ def _confirm(client: TestClient, batch_id: str) -> dict[str, Any]:
 
 
 def test_confirm_alipay_sample_five_raw_tables(
-    client: TestClient, upload, fixtures_dir: Path, db: Database
+    client: TestClient, upload, fixtures_dir: Path, db: Database, paths: DataPaths
 ) -> None:
     """主出口：669 行跨 5 月 → 5 张 raw 表 101/136/182/143/107。"""
     batch_id = prepare(client, upload, fixtures_dir)
@@ -105,7 +105,7 @@ def test_confirm_alipay_sample_five_raw_tables(
     )
     assert report["batch_id"] == batch_id
     assert report["finished_at"]
-    # NullSink：假装删成功（B 线的 CleanupService 上线后这里才是真删除）
+    # M2 后走真实 CleanupService：文件真删成功 → files_deleted=True
     assert report["files_deleted"] is True
     assert report["cleanup_pending"] is False
     assert report["cleanup_id"] is None
@@ -128,7 +128,12 @@ def test_confirm_alipay_sample_five_raw_tables(
     row = db.query_one("SELECT * FROM staging_batch WHERE id = ?", (batch_id,))
     assert row is not None
     assert row["status"] == "ingested"
-    assert row["pending_delete_flag"] == 1  # 删除意图（清零归 B 线）
+    # M2 后 CleanupService 真删成功 → 旗标清零（K4：清零只发生在删除成功后）
+    assert row["pending_delete_flag"] == 0
+    assert row["deleted_at"]
+    # 缓冲区文件确实没了（I9：先提交后删，成功即清零）
+    buffer = BufferFileManager(paths.buffer_dir)
+    assert buffer.exists(str(row["stored_name"])) is False
     assert row["committed_at"] == report["finished_at"]
     assert row["ingest_started_at"]
     # D-5：快照在事务内原样回写（内容与预检那份一致，此后只读）
@@ -234,15 +239,27 @@ def test_report_files_deleted_follows_pending_flag(
 ) -> None:
     """D-7/K4：``files_deleted`` 的唯一事实源是 ``pending_delete_flag``。
 
-    NullSink 不清零 → 读时为 False（文件确实还在）；模拟 B 线清零后 → True。
+    M2 后 HTTP confirm 走真实 CleanupService：文件真删 → flag=0 → 报告
+    ``files_deleted=True``；把旗标置回 1（模拟删除失败待清理）→ 推导翻转。
+    两个方向都覆盖，防止有人把快照副本写进 ``report_json``。
     """
     batch_id = prepare(client, upload, fixtures_dir)
     client.post(f"{PREFIX}/batches/{batch_id}/precheck")
-    _confirm(client, batch_id)
+    report = _confirm(client, batch_id)
+    assert report["files_deleted"] is True
+    assert report["cleanup_pending"] is False
 
     before = client.get(f"{PREFIX}/batches/{batch_id}/report").json()["data"]
-    assert before["files_deleted"] is False
-    assert before["cleanup_pending"] is True
+    assert before["files_deleted"] is True
+    assert before["cleanup_pending"] is False
+
+    db.execute(
+        "UPDATE staging_batch SET pending_delete_flag = 1 WHERE id = ?",
+        (batch_id,),
+    )
+    pending = client.get(f"{PREFIX}/batches/{batch_id}/report").json()["data"]
+    assert pending["files_deleted"] is False
+    assert pending["cleanup_pending"] is True
 
     db.execute(
         "UPDATE staging_batch SET pending_delete_flag = 0, deleted_at = ? WHERE id = ?",

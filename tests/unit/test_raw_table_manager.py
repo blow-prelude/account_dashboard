@@ -5,6 +5,11 @@
 * **无改/删方法** —— I7 靠"没有这个方法"强制，``hasattr`` 进 CI；
 * **非法月份不执行任何 SQL** —— 表名拼接是全项目唯一的标识符注入面；
 * **只建有数据的月份** —— 无数据月份不建表（EX-09 的全重复批次连一个表都不建）。
+
+合稿备注：``raw_naming`` 按 infra 房风格抛 ``InfraError``（``RawTableError``，
+码值 ``E3002`` 不变），由 ``services/error_mapping.translate_infra`` 翻成
+``TransactionError`` 后出海——这里断言 infra 层原样，翻译行为由
+``tests/unit/test_error_mapping.py`` 覆盖。
 """
 
 from __future__ import annotations
@@ -14,7 +19,7 @@ import sqlite3
 
 import pytest
 
-from account_dashboard.api.errors import TransactionError
+from account_dashboard.infra.errors import RawTableError
 from account_dashboard.infra.raw_naming import month_key, table_name
 from account_dashboard.models.enums import Direction
 from account_dashboard.repositories.raw_repo import (
@@ -76,14 +81,13 @@ def test_public_surface_is_minimal() -> None:
 def test_illegal_month_rejected_without_sql(bad: str) -> None:
     conn = _conn()
     manager = RawTableManager()
-    with pytest.raises(TransactionError) as excinfo:
+    with pytest.raises(RawTableError) as excinfo:
         manager.ensure_table(conn, bad)
-    assert excinfo.value.code.value == "E3002"
-    assert excinfo.value.http_status == 500
+    assert excinfo.value.code == "E3002"
     # 不执行任何 SQL：库里一张 raw_% 表都不许有
     assert _raw_tables(conn) == []
 
-    with pytest.raises(TransactionError):
+    with pytest.raises(RawTableError):
         manager.write_rows(conn, bad, [_row(1)])
     assert _raw_tables(conn) == []
 
@@ -92,7 +96,7 @@ def test_month_key_derives_from_occurred_at() -> None:
     assert month_key("2026-10-21T19:48:03") == "2026_10"
     assert month_key("2026-06-01 08:00:00") == "2026_06"
     assert table_name("2026_10") == "raw_2026_10"
-    with pytest.raises(TransactionError):
+    with pytest.raises(RawTableError):
         month_key("不是时间")
 
 
@@ -106,7 +110,7 @@ def test_only_months_with_rows_get_tables() -> None:
     assert manager.existing_tables(conn) == ["raw_2026_06", "raw_2026_07"]
     assert table_exists(conn, "raw_2026_06") is True
     assert table_exists(conn, "raw_2025_12") is False
-    with pytest.raises(TransactionError):
+    with pytest.raises(RawTableError):
         table_exists(conn, "raw_;DROP")
 
 

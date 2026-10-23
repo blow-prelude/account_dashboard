@@ -1,6 +1,9 @@
 """依赖注入（A8）。
 
 服务只接受「接口」参数，测试时可注入临时库与临时目录，不需要 monkeypatch 全局状态。
+
+合稿 M2 后，``get_delete_sink``（K3 的唯一咬合点）从 ``NullSink`` 换成 B 线的
+``CleanupService`` —— A 线用例零改动，因为 A 线只依赖 ``DeleteFailureSink`` 协议。
 """
 
 from __future__ import annotations
@@ -14,9 +17,12 @@ from account_dashboard.infra.buffer_file import BufferFileManager
 from account_dashboard.infra.paths import DataPaths
 from account_dashboard.repositories.database import Database
 from account_dashboard.repositories.unit_of_work import UnitOfWork
+from account_dashboard.services.cleanup_service import CleanupService
 from account_dashboard.services.import_orchestrator import ImportOrchestrator
-from account_dashboard.services.ingest_ports import DeleteFailureSink, NullSink
+from account_dashboard.services.ingest_ports import DeleteFailureSink
 from account_dashboard.services.ingest_service import IngestService
+from account_dashboard.services.raw_browse_service import RawBrowseService
+from account_dashboard.services.trace_service import TraceService
 
 
 def get_database(request: Request) -> Database:
@@ -60,13 +66,20 @@ def get_orchestrator(request: Request) -> Iterator[ImportOrchestrator]:
     )
 
 
-def get_delete_sink(request: Request) -> DeleteFailureSink:
-    """删除意图注入点（K3）。
+def _cleanup_service(request: Request) -> CleanupService:
+    """``CleanupService`` 的唯一构造点（K3/K4：删除意图与队列清账在一处装配）。"""
+    database = get_database(request)
+    paths = get_paths(request)
+    return CleanupService(uow=UnitOfWork(database), buffer=BufferFileManager(paths.buffer_dir))
 
-    A 线开发期用 ``NullSink``（假装删成功）；合稿 M2 换成 B 线的
-    ``CleanupService`` 只改这一处，A 线用例零改动。
+
+def get_delete_sink(request: Request) -> DeleteFailureSink:
+    """删除意图注入点（K3，合稿 M2 的接线处）。
+
+    A 线开发期是 ``NullSink``（假装删成功）；合稿 M2 起换成 B 线的
+    ``CleanupService`` —— A 线只依赖 ``DeleteFailureSink`` 协议，用例零改动。
     """
-    return NullSink()
+    return _cleanup_service(request)
 
 
 def get_ingest_service(request: Request) -> Iterator[IngestService]:
@@ -81,3 +94,18 @@ def get_ingest_service(request: Request) -> Iterator[IngestService]:
         buffer=buffer,
         data_dir=paths.data_dir,
     )
+
+
+def get_cleanup_service(request: Request) -> Iterator[CleanupService]:
+    """删除意图 / 待清理队列的装配点（C3-B）。"""
+    yield _cleanup_service(request)
+
+
+def get_raw_browse_service(request: Request) -> Iterator[RawBrowseService]:
+    """原始库只读浏览的装配点（C3-B）。"""
+    yield RawBrowseService(uow=UnitOfWork(get_database(request)))
+
+
+def get_trace_service(request: Request) -> Iterator[TraceService]:
+    """批次追溯的装配点（C3-B）。"""
+    yield TraceService(uow=UnitOfWork(get_database(request)))

@@ -1,22 +1,27 @@
-"""C3 的 SQL 夹具（Gate 0，双方只读）。
+"""C3 的 SQL 夹具（Gate 0）：不 import 任何 A/B 线模块，纯裸 SQL 造状态。
 
-存在的意义是 **B 线的独立性**：B 线（删除意图/自愈/追溯）要能在完全没有
-``IngestService`` 的情况下造出「``ingested`` + ``flag=1`` + raw 行 + transaction 行」
-的状态。因此这里全是裸 SQL，**不 import 任何 A/B 线模块** —— raw 表的 DDL 与
-``repositories/raw_repo.py`` 的模板逐列一致，是故意的重复（改 raw 列定义时两边
-都要改，有 ``test_raw_payload_fidelity`` 与 B 线用例兜底）。
+B 线（删除意图 / 自愈 / 追溯）的全部用例靠它在**完全没有 ``IngestService``**
+的情况下预置「``ingested`` + ``flag=1`` + raw 行 + transaction 行」；合稿时
+A 线也用它预置"重复入库"场景。因此这里刻意不依赖两条线的任何实现，
+只依赖 Gate 0 的 ``infra/raw_naming``（表名唯一收口）。
 
-严禁在这里放业务逻辑：夹具只负责「把数据库摆成某个状态」。
+动态建的 ``raw_YYYY_MM`` 与 ``V001__init.sql`` 的模板逐列一致（16 列 + 2 索引）——
+A 线合稿后两侧建表形状相同，B 线的查询才不会错位。
 """
 
 from __future__ import annotations
 
+import hashlib
+import json
 import sqlite3
 from typing import Any
 
-# 与 repositories/raw_repo.py 的 RAW_TABLE_DDL 逐列一致（16 列 + 2 索引）
-_RAW_DDL = """
-CREATE TABLE IF NOT EXISTS raw_{month} (
+from account_dashboard.infra.clock import now_iso
+from account_dashboard.infra.raw_naming import table_name
+
+# 与 V001__init.sql 的 raw 模板一致：16 列 + 2 索引（K1）
+_RAW_TABLE_DDL = """
+CREATE TABLE IF NOT EXISTS {table} (
     id           INTEGER PRIMARY KEY AUTOINCREMENT,
     batch_id     TEXT    NOT NULL,
     row_no       INTEGER NOT NULL,
@@ -35,11 +40,25 @@ CREATE TABLE IF NOT EXISTS raw_{month} (
     imported_at  TEXT    NOT NULL
 )
 """
+_RAW_TIME_IDX = "CREATE INDEX IF NOT EXISTS {idx} ON {table}(occurred_at DESC)"
+_RAW_BATCH_IDX = "CREATE INDEX IF NOT EXISTS {idx} ON {table}(batch_id, row_no)"
 
-_TXN_COLUMNS = (
-    "id, occurred_at, amount_cents, direction, category_l1, category_l2, counterparty, "
-    "item, txn_type, payment_method, channel, status, note, hint_l1, hint_l2, batch_id, "
-    "row_no, fp, override_reason, override_at, created_at, updated_at"
+_DIRECTIONS = ("income", "expense", "neutral")
+_CHANNELS = ("wechat", "alipay", "bank", "other")
+
+# raw 与 transaction 双写时必须逐项一致的 11 个字段（I8 的追溯口径）
+_TRACE_FIELDS = (
+    "batch_id",
+    "row_no",
+    "occurred_at",
+    "amount_cents",
+    "direction",
+    "counterparty",
+    "item",
+    "txn_type",
+    "payment_method",
+    "channel",
+    "fp",
 )
 
 
@@ -51,39 +70,34 @@ def make_ingested_batch(
     file_name: str,
     pending_delete_flag: int = 1,
     report_json: str | None = None,
+    mapping_snapshot: str | None = None,
 ) -> None:
-    """造一个 ``ingested`` 批次（可选带 ``report_json`` 与删除意图旗标）。"""
+    """造一个「已入库」批次（B 线用例的起点状态）。
+
+    ``pending_delete_flag=1`` 表示删除意图待执行（文件应在缓冲区里），
+    ``=0`` 配合"文件仍存在"即对账第 ③ 步的不一致场景。
+    ``mapping_snapshot`` 是相对 Gate 0 签名单的**新增可选参数**（additive）：
+    追溯四块断言需要它，A 线调用时不传即不影响。
+    """
+    stamp = now_iso()
     conn.execute(
-        "INSERT INTO staging_batch(id, file_name, stored_name, file_size, channel, status, "
-        "total_rows, new_count, dup_count, pending_count, encoding, adapter, header_row_no, "
-        "mapped_fields, mapping_snapshot, parse_meta, report_json, pending_delete_flag, "
-        "deleted_at, fail_reason, ingest_started_at, committed_at, created_at, updated_at) "
-        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        "INSERT INTO staging_batch(id, file_name, stored_name, file_size, status, "
+        "total_rows, report_json, mapping_snapshot, pending_delete_flag, "
+        "committed_at, created_at, updated_at) "
+        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
         (
             batch_id,
             file_name,
             stored_name,
-            1024,
-            "alipay",
+            2048,
             "ingested",
             0,
-            0,
-            0,
-            0,
-            "gb18030",
-            "alipay_csv",
-            23,
-            None,
-            None,
-            None,
             report_json,
+            mapping_snapshot,
             pending_delete_flag,
-            None,
-            None,
-            "2026-10-22T10:00:00",
-            "2026-10-22T10:00:01",
-            "2026-10-22T09:59:00",
-            "2026-10-22T10:00:01",
+            stamp,
+            stamp,
+            stamp,
         ),
     )
 
@@ -96,106 +110,125 @@ def seed_raw_rows(
     *,
     start_row_no: int = 1,
 ) -> None:
-    """在 ``raw_{month}`` 里造 ``rows`` 行（行号从 ``start_row_no`` 起，按序递增）。"""
-    conn.execute(_RAW_DDL.format(month=month))
-    payload: list[tuple[Any, ...]] = []
-    for index in range(rows):
-        row_no = start_row_no + index
-        payload.append(
+    """在 ``raw_YYYY_MM`` 里造 ``rows`` 行（表不存在则按 V001 模板建）。
+
+    月份键形如 ``"2026_06"``；行内容由 :func:`_business_values` 确定性生成，
+    与 :func:`seed_transactions` 共用同一发生器 —— 追溯用例因此能逐字段比对。
+    """
+    table = table_name(month)
+    conn.execute(_RAW_TABLE_DDL.format(table=table))
+    conn.execute(_RAW_TIME_IDX.format(idx=f"idx_{table}_time", table=table))
+    conn.execute(_RAW_BATCH_IDX.format(idx=f"idx_{table}_batch", table=table))
+    stamp = now_iso()
+    payloads: list[tuple[Any, ...]] = []
+    for offset in range(rows):
+        values = _business_values(start_row_no + offset, batch_id)
+        payloads.append(
             (
-                batch_id,
-                row_no,
-                f"{month.replace('_', '-')}-01T10:00:00",
-                1000 + row_no,
-                "expense",
-                f"对方{row_no}",
-                f"商品{row_no}",
+                values["batch_id"],
+                values["row_no"],
+                values["occurred_at"],
+                values["amount_cents"],
+                values["direction"],
+                values["counterparty"],
+                values["item"],
+                values["txn_type"],
+                values["payment_method"],
                 None,
                 None,
-                None,
-                None,
-                "alipay",
-                f"fp-{batch_id}-{row_no}",
-                '{"交易时间": "x"}',
-                "2026-10-22T10:00:01",
+                values["channel"],
+                values["fp"],
+                json.dumps(_original_row(values), ensure_ascii=False, sort_keys=True),
+                stamp,
             )
         )
     conn.executemany(
-        f"INSERT INTO raw_{month}(batch_id, row_no, occurred_at, amount_cents, direction, "
+        f"INSERT INTO {table}(batch_id, row_no, occurred_at, amount_cents, direction, "
         "counterparty, item, txn_type, payment_method, platform_category, platform_status, "
         "channel, fp, raw_payload, imported_at) "
         "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-        payload,
+        payloads,
     )
 
 
-def seed_transactions(
-    conn: sqlite3.Connection,
-    batch_id: str,
-    rows: int,
-    *,
-    start_row_no: int = 1,
-) -> None:
-    """造 ``rows`` 行 ``transaction``（``status`` 恒 ``pending``，与 C3 写入口径一致）。"""
-    payload: list[tuple[Any, ...]] = []
-    for index in range(rows):
-        row_no = start_row_no + index
-        payload.append(
+def seed_transactions(conn: sqlite3.Connection, batch_id: str, rows: int) -> None:
+    """造 ``rows`` 条主数据（``status='pending'``、``category_*`` 为 NULL —— C3 边界自证）。
+
+    行号与 :func:`seed_raw_rows` 的决定论发生器一致，因此同一 ``batch_id``
+    下 ``row_no`` 相同的两行在 11 个业务字段上逐项相等。
+    """
+    stamp = now_iso()
+    payloads: list[tuple[Any, ...]] = []
+    for offset in range(rows):
+        values = _business_values(1 + offset, batch_id)
+        payloads.append(
             (
-                f"txn-{batch_id}-{row_no}",
-                f"2026-10-22T10:00:{row_no % 60:02d}",
-                1000 + row_no,
-                "expense",
-                None,
-                None,
-                f"对方{row_no}",
-                f"商品{row_no}",
-                None,
-                None,
-                "alipay",
+                f"T-{batch_id[:8]}-{values['row_no']:04d}",
+                values["occurred_at"],
+                values["amount_cents"],
+                values["direction"],
+                values["counterparty"],
+                values["item"],
+                values["txn_type"],
+                values["payment_method"],
+                values["channel"],
                 "pending",
-                None,
-                None,
-                None,
-                batch_id,
-                row_no,
-                f"fp-{batch_id}-{row_no}",
-                None,
-                None,
-                "2026-10-22T10:00:01",
-                "2026-10-22T10:00:01",
+                values["batch_id"],
+                values["row_no"],
+                values["fp"],
+                stamp,
+                stamp,
             )
         )
-    placeholders = ", ".join("?" for _ in _TXN_COLUMNS.split(", "))
     conn.executemany(
-        f'INSERT INTO "transaction"({_TXN_COLUMNS}) VALUES ({placeholders})',
-        payload,
+        'INSERT INTO "transaction"(id, occurred_at, amount_cents, direction, counterparty, '
+        "item, txn_type, payment_method, channel, status, batch_id, row_no, fp, "
+        "created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        payloads,
     )
 
 
-def raw_row_count(conn: sqlite3.Connection, month: str) -> int:
-    """``raw_{month}`` 的行数；表不存在返回 0（B 线「缺月是常态」的同一口径）。"""
-    row = conn.execute(
-        "SELECT COUNT(*) AS n FROM sqlite_master WHERE type='table' AND name = ?",
-        (f"raw_{month}",),
-    ).fetchone()
-    if row is None or int(row["n"]) == 0:
-        return 0
-    return int(conn.execute(f"SELECT COUNT(*) AS n FROM raw_{month}").fetchone()["n"])
+def trace_field_names() -> tuple[str, ...]:
+    """raw 与 transaction 双写口径的 11 个字段名（追溯比对的唯一清单）。"""
+    return _TRACE_FIELDS
 
 
-def all_raw_tables(conn: sqlite3.Connection) -> list[str]:
-    """当前库里的 raw 分表名（升序）。"""
-    rows = conn.execute(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'raw_%' ORDER BY name"
-    ).fetchall()
-    return [str(row["name"]) for row in rows]
+def _business_values(row_no: int, batch_id: str) -> dict[str, Any]:
+    """同一 ``row_no`` 永远得到同一组值 —— raw 与 transaction 因此可逐字段互证。"""
+    occurred_at = f"2026-06-{1 + (row_no % 28):02d}T12:00:00"
+    amount_cents = 1000 + row_no * 137
+    counterparty = f"对方-{row_no:04d}"
+    item = f"商品-{row_no:04d}"
+    txn_type = "消费"
+    payment_method = "微信支付"
+    channel = _CHANNELS[row_no % len(_CHANNELS)]
+    direction = _DIRECTIONS[row_no % len(_DIRECTIONS)]
+    fp = hashlib.sha1(
+        f"{occurred_at}|{amount_cents}|{direction}|{counterparty}".encode()
+    ).hexdigest()[:16]
+    return {
+        "batch_id": batch_id,
+        "row_no": row_no,
+        "occurred_at": occurred_at,
+        "amount_cents": amount_cents,
+        "direction": direction,
+        "counterparty": counterparty,
+        "item": item,
+        "txn_type": txn_type,
+        "payment_method": payment_method,
+        "channel": channel,
+        "fp": fp,
+    }
 
 
-__all__ = [
-    "all_raw_tables",
-    "make_ingested_batch",
-    "raw_row_count",
-    "seed_raw_rows",
-    "seed_transactions",
-]
+def _original_row(values: dict[str, Any]) -> dict[str, Any]:
+    """raw_payload 的"整行原貌"：保留平台列名与字符串形态（I7），不做单位换算。"""
+    return {
+        "交易时间": values["occurred_at"],
+        "金额": f"{values['amount_cents'] / 100:.2f}",
+        "收/支": values["direction"],
+        "交易对方": values["counterparty"],
+        "商品说明": values["item"],
+        "交易类型": values["txn_type"],
+        "支付方式": values["payment_method"],
+    }

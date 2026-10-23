@@ -222,6 +222,12 @@ class OrphanFileDTO(BaseModel):
     modified_at: str
 
 
+class OrphanCleanupReq(BaseModel):
+    """``POST /staging/orphans/cleanup`` 的请求体（C3-B 新增，前端已按此调用）。"""
+
+    names: list[str] = Field(min_length=1, max_length=200)
+
+
 class BufferUsageDTO(BaseModel):
     file_count: int = 0
     total_bytes: int = 0

@@ -1,42 +1,39 @@
-"""入库事务的删除意图注入点（K3 / Gate 0 冻结）。
+"""K3 的注入协议（Gate 0 冻结）：事务外的删除意图交给自己，也交给未来。
 
-A 线（入库事务）在 ``COMMIT`` **之后**、事务**外**调用
-``sink.on_committed(batch_id, file_path)``，把「缓冲区物理文件怎么处理」
-整个交出去；B 线提供真实实现 ``CleanupService``（删成功清零
-``pending_delete_flag``，失败入 ``cleanup_queue``），开发期用
-:class:`NullSink` 占位。
+A 线（``IngestService``）在 COMMIT **之后**调用
+``DeleteFailureSink.on_committed(batch_id, file_path)``，拿到
+:class:`DeleteOutcome` 决定报告里 ``files_deleted`` 填真还是假。
+它自己**一个 ``unlink`` 都不写**（grep 门禁保证）—— 文件系统不在事务里，
+先提交再删，最坏结果是"数据在、文件也在"（由 B 线的启动对账补删）。
 
-这个 Protocol 是两条线**唯一**的咬合点：A 线不 import B 线的任何模块，
-B 线也不 import ``ingest_service``。把 ``NullSink`` 换成 ``CleanupService``
-只需改 ``api/deps.py`` 的一行（合稿 M2），A 线全部用例应零改动全绿。
+Gate 0 提供开发期默认实现 :class:`NullSink`（直接报告已删除，什么都不做）；
+合稿 M2 把它换成 :class:`~account_dashboard.services.cleanup_service.CleanupService`
+—— ``api/deps.py`` 里的一行替换，是两条线唯一的咬合点。
 """
 
 from __future__ import annotations
 
-from typing import Protocol
+from typing import Protocol, runtime_checkable
 
 from pydantic import BaseModel
 
 
 class DeleteOutcome(BaseModel):
-    """删除结果。``deleted=False`` 时 ``cleanup_id`` 必填（调用方要能指回队列项）。"""
+    """删除结果。``cleanup_id`` 在 ``deleted=False`` 时必填（D-7 的 report 要用）。"""
 
     deleted: bool
     cleanup_id: str | None = None
 
 
+@runtime_checkable
 class DeleteFailureSink(Protocol):
-    """事务外调用；实现方自行决定重试策略，但**不得**因此回滚已提交的数据。"""
+    """A 线唯一可见的删除接口：事务外调用，返回是否删除成功。"""
 
     def on_committed(self, batch_id: str, file_path: str) -> DeleteOutcome: ...
 
 
 class NullSink:
-    """A 线开发期默认实现：假装删成功，不碰文件系统。
-
-    存在的意义是让 A 线的用例可以在「B 线还不存在」的情况下全绿；
-    生产环境绝不允许注入它（文件会永远堆在缓冲区里）。
-    """
+    """Gate 0 的开发期实现：声称已删除，实际不动文件（A 线单测用）。"""
 
     def on_committed(self, batch_id: str, file_path: str) -> DeleteOutcome:
         return DeleteOutcome(deleted=True)
