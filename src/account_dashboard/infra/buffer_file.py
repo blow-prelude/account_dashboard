@@ -11,9 +11,11 @@
 
 from __future__ import annotations
 
+import gc
 import hashlib
 import os
 import shutil
+import time
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -192,6 +194,35 @@ class BufferFileManager:
             return
         except OSError as exc:
             raise FileDeleteError(f"文件删除失败：{exc}") from exc
+
+    def delete_with_retry(self, path: Path, attempts: int = 3, delay: float = 0.1) -> bool:
+        """带退避的删除（EX-11 / C3-B）：返回是否删干净了，**绝不抛异常**。
+
+        Windows 上 openpyxl / csv 读取后的句柄可能没来得及释放，``unlink``
+        抛 ``PermissionError``；``gc.collect()`` 是那里唯一有效的兜底，
+        配合 100/200/300ms 线性退避给系统一个回收窗口。
+
+        三条语义（与既有的 ``delete()`` 刻意不同，那个是"失败即抛"）：
+
+        * ``FileNotFoundError`` → **成功**（幂等：已经没了就算删掉）；
+        * ``PermissionError`` → 退避后重试，``attempts`` 次都失败才返回 ``False``；
+        * 其他 ``OSError``（目录、只读文件系统…）→ 立即 ``False``，重试无意义。
+
+        调用方（``CleanupService`` / 启动对账）拿到 ``False`` 后自行入队，
+        由用户在``待清理``页面手动重试 —— 删除失败永远不阻断主流程。
+        """
+        for i in range(attempts):
+            try:
+                path.unlink()
+                return True
+            except FileNotFoundError:
+                return True
+            except PermissionError:
+                gc.collect()
+                time.sleep(delay * (i + 1))
+            except OSError:
+                return False
+        return False
 
     def scan_orphans(self, known_names: set[str]) -> list[OrphanFile]:
         """目录里存在、但没有任何批次记录的文件（半成品不算孤儿）。"""

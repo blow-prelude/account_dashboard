@@ -90,3 +90,13 @@ class BufferDirError(InfraError):
     """E4004：缓冲区目录不可用。"""
 
     code = "E4004"
+
+
+class RawTableError(InfraError):
+    """E3002：raw 分表名非法（月份格式不对，或表名拼接被注入）。
+
+    全项目只有 ``infra/raw_naming.table_name()`` 会抛它 —— 那是唯一
+    允许拼接 SQL 标识符的地方（K1/K8）。
+    """
+
+    code = "E3002"

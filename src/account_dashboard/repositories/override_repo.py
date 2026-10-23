@@ -58,6 +58,10 @@ class OverrideRepo:
                 result[record.row_no] = record
         return result
 
+    def row_nos(self, batch_id: str) -> set[int]:
+        """本批次被标记「强制新增」的行号集合（C3-A 二次去重时绕过 fp 判断）。"""
+        return set(self.list_by_batch(batch_id))
+
     def delete(self, batch_id: str, row_no: int) -> int:
         cursor = self._conn.execute(
             "DELETE FROM override_mark WHERE batch_id = ? AND row_no = ?", (batch_id, row_no)

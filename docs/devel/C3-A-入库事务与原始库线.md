@@ -279,3 +279,53 @@ staging_repo.finish_ingest(conn, ..., mapping_snapshot=json.dumps(snapshot, ensu
 3. `report_json` 的完整结构（含 D-6 的 `skipped[]`），B 线的 `/raw/months` 与 `/trace` 都要与它对得上；
 4. `transaction_repo` 的 C4 空壳签名已就位；
 5. 故障注入 1/3/4 已进入 CI（C4/C5 每次提交都会跑）。
+
+---
+
+## 9. 实施记录（2026-10-23，分支 `c3a-ingest`）
+
+### 9.1 落地文件
+
+| 文件 | 层 | 内容 |
+|------|----|------|
+| `infra/raw_naming.py` | infra | `month_key` / `table_name`，非法月份 → `E3002`（表名永不拼接用户输入） |
+| `services/ingest_ports.py` | services | `DeleteOutcome` / `DeleteFailureSink` / `NullSink`（B 线唯一注入点） |
+| `models/ingest.py` | models | `IngestReportDTO` / `IngestReportDetailDTO` / `SkippedRowDTO` / `truncate_raw` / `from_stored` |
+| `repositories/raw_repo.py` | repositories | `RawTableManager`（`ensure_table` / `write_rows` / `existing_tables` / `count_by_batch`）、`RawRow`、`dump_raw_payload`；公开面无 `update` / `delete` |
+| `services/ingest_service.py` | services | `confirm` 单事务（闸门 → 重放 → 二次去重 → 双写 → 报告）、`report`、`_ensure_free_space`、OperationalError 分级 |
+| `repositories/transaction_repo.py` | repositories | `insert_many`（500/批 + `batch_hook` 注入点）、`find_fp_in`、C4 空壳签名 |
+| `repositories/staging_repo.py` | repositories | `try_enter_ingesting`（条件 UPDATE + rowcount）、`finish_ingest`（冻结快照 + 报告 + `pending_delete_flag=1`）；`BatchRow` 增 4 列 |
+| `services/batch_guard.py` | services | 7×6 矩阵开放 `ingest` / `confirm` 两列 |
+| `api/routers/ingest.py` + `api/deps.py` | api | 2 端点；DI 只增 `get_ingest_service` / `get_delete_sink` |
+| `models/staging.py` | models | `BatchDetailDTO.report`（FZ-2 预留位，ADDITIVE） |
+| `tests/helpers/ingest_state.py` | tests | 纯 SQL 夹具（无 HTTP 依赖，供 FI 复用） |
+
+### 9.2 与设计文档的差异（均为实施期澄清，无契约偏离）
+
+1. **`RawTableManager` 公开面多两个只读方法**：`existing_tables` / `count_by_batch` 是出口检查表「`raw_%` 表数量不变」与「按批次计数」断言的必需品，只读，不违反 §4.3 的只增不改；
+2. **`report_json` 不存 `files_deleted` / `cleanup_*`**：§4.5 曾设想入快照，实施时改为**从 `pending_delete_flag` 推导**（`from_stored`），理由见契约登记——存副本会漂移，旗标才是唯一事实源（I9）；
+3. **磁盘预检参数化**：`free_space_probe` / `min_free_bytes` 可注入，否则 FI-4 只能靠真实占满磁盘，不可入 CI；
+4. **`filelock.py` mypy 修复**：C1 遗留噪音，行为等价，登记为 INTERNAL。
+
+### 9.3 出口检查表核对（§6.2）
+
+| # | 断言 | 证据 |
+|---|------|------|
+| 1 | 5 张 raw 表逐月 101/136/182/143/107 | `test_ingest_multi_month.py::test_confirm_alipay_sample_five_raw_tables` |
+| 2 | 注入异常后两表均 0、`raw_%` 表数量不变 | `test_fi_tx_failure.py`（含先建表再失败的不变式） |
+| 3 | 并发确认一 200 一 409、无重复 fp | `test_fi_concurrent_confirm.py` |
+| 4 | `raw_payload` 5 月抽样逐项一致 | `test_raw_payload_fidelity.py` |
+| 5 | `RawTableManager` 无 update/delete，`hasattr` 进 CI | `test_write_path_gates.py::test_raw_table_manager_has_no_mutation_methods` |
+| 6 | 无数据月份不建表 | `test_ingest_all_dup.py`（669 全 DUP，`raw_%` 零表）+ `test_raw_table_manager.py` |
+| 7 | `total == inserted + skipped_dup + skipped_invalid`；`sum(monthly) == inserted` | `test_ingest_multi_month.py::test_report_numbers_are_self_consistent` |
+| 8 | `ingest_service.py` 无 `unlink` / `os.remove` | `test_write_path_gates.py::test_ingest_service_never_deletes_files` |
+| 9 | `transaction.status` 仅 `pending` | `test_ingest_multi_month.py::test_all_transactions_are_pending` |
+| 10 | 打 tag `c3a-done` | 提交后执行 |
+
+### 9.4 全量验证（出口证据）
+
+- `pytest`：**343 passed / 1 failed / 2 skipped**（唯一失败 `test_path_guard.py::test_unc_path_rejected` 是 Windows 专属用例，Linux 下 `Path("//server/share")` 被归一化为 POSIX 路径，C1 起即为已知平台差异，与本线无关）
+- `ruff check src tests`：全过
+- `mypy src`：64 文件零问题
+- `scripts/check-frontend.mjs`：PASSED
+- 契约登记：`CONTRACT-CHANGELOG.md` 三条（FZ-3 前半 ADDITIVE、D-7 ADDITIVE、D-8 + filelock INTERNAL）

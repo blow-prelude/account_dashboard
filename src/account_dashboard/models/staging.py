@@ -3,17 +3,21 @@
 冻结规则：字段名与类型一经发布，下游只允许**加字段**（可选、带默认值），
 不允许改名、改类型、反转 ``null`` 语义。新增字段请同步 `CONTRACT-CHANGELOG`。
 
-C2 阶段没有 ``report`` 字段：导入报告属于 C3 的 ``IngestReportDTO``，
-届时以「新增可选字段」的方式加进 ``BatchDetailDTO``，而不是现在占一个 ``dict`` 位。
+C3 起 ``BatchDetailDTO`` 携带 ``report``（C3-A 落地的导入报告，ADDITIVE）——
+字段是前向引用，由 ``models/__init__.py`` 在包装载时补齐，避免
+``staging ↔ ingest`` 的模块级循环导入。
 """
 
 from __future__ import annotations
 
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 from pydantic import BaseModel, Field
 
 from account_dashboard.models.enums import BatchStatus, Channel, DedupLabel, Direction
+
+if TYPE_CHECKING:
+    from account_dashboard.models.ingest import IngestReportDTO
 
 TemplatePolicy = Literal["abort", "overwrite", "save_as"]
 
@@ -75,6 +79,9 @@ class BatchDetailDTO(BatchDTO):
     mapping_snapshot: dict[str, Any] | None = None
     parse_meta: ParseMetaDTO | None = None
     file_exists: bool = False
+    # C3 新增（ADDITIVE）：导入报告。批次未入库时为 None；前端报告页优先读它，
+    # 省掉一次 GET /report。前向引用由 models/__init__.py 补齐。
+    report: IngestReportDTO | None = None
 
 
 class ParseResultDTO(BaseModel):
@@ -213,6 +220,12 @@ class OrphanFileDTO(BaseModel):
     name: str
     size_bytes: int
     modified_at: str
+
+
+class OrphanCleanupReq(BaseModel):
+    """``POST /staging/orphans/cleanup`` 的请求体（C3-B 新增，前端已按此调用）。"""
+
+    names: list[str] = Field(min_length=1, max_length=200)
 
 
 class BufferUsageDTO(BaseModel):

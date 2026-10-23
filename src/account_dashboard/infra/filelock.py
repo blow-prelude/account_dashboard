@@ -7,8 +7,8 @@
 
 from __future__ import annotations
 
-import importlib
 import os
+import sys
 from contextlib import suppress
 from pathlib import Path
 from types import TracebackType
@@ -78,24 +78,28 @@ class SingleInstanceLock:
 
 
 def _lock(handle: TextIO) -> None:
-    if os.name == "nt":
+    # 用 sys.platform 而非 os.name：mypy 按分析平台静态裁剪不可达分支，
+    # Windows 专用模块（msvcrt）不会在 POSIX 上被类型检查（行为与 os.name 等价）
+    if sys.platform == "win32":
         import msvcrt
 
         msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
     else:  # pragma: no cover - POSIX 分支
-        fcntl = importlib.import_module("fcntl")
+        import fcntl
+
         fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
 
 
 def _unlock(handle: TextIO) -> None:
     try:
-        if os.name == "nt":
+        if sys.platform == "win32":
             import msvcrt
 
             handle.seek(0)
             msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
         else:  # pragma: no cover - POSIX 分支
-            fcntl = importlib.import_module("fcntl")
+            import fcntl
+
             fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
     except OSError:  # pragma: no cover - 进程退出时自动释放
         return

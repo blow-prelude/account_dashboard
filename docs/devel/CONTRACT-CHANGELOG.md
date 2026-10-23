@@ -21,7 +21,7 @@
 |--------|------|------|------|
 | FZ-1 | C1 收口 | `ApiResponse`、`PageMeta`、`Page`、`ErrorCode`（37 值）、退出码 1~5、`/health` | **已冻结 v1（2026-10-22）** |
 | FZ-2 | C2 收口 | `BatchDTO`、`BatchDetailDTO`、`ParseMetaDTO`、`MappingReq`、`PrecheckResultDTO`、7 个批次状态 | **已冻结 v1（2026-10-22）** |
-| FZ-3 | C3 收口 | `IngestReportDTO`、`RawRecordDTO`、`raw_YYYY_MM` 列定义、`pending_delete_flag`、7×6 状态矩阵 | 待冻结 |
+| FZ-3 | C3 收口 | `IngestReportDTO`、`RawRecordDTO`、`raw_YYYY_MM` 列定义、`pending_delete_flag`、7×6 状态矩阵 | **已冻结 v1（2026-10-23）** |
 | FZ-4 | C4 收口 | 12 指标 DTO、`base_filter` 语义、`period/anchor` 格式、`null` 语义、三入口同源 | 待冻结 |
 
 > 「待冻结」在对应周期出口检查表通过后改为「已冻结 v1」，并在此追加条目。
@@ -159,6 +159,106 @@
 - **说明**：本文件随《后端开发周期总览 v1.0》建立，尚无实际代码变更；基线为 SDD §6 的端点清单与 DTO 定义。
 - **影响面**：无（尚未实现）
 - **回归用例**：无
+
+### 2026-10-23 · C3-A 实施 · ADDITIVE · FZ-3 前半：入库端点、`IngestReportDTO`、raw 分表与三错误码
+
+- **对象**：
+  - 新端点 ×2：`POST /api/v1/staging/batches/{batch_id}/confirm`、`GET /api/v1/staging/batches/{batch_id}/report?include_skipped=`
+  - 新 DTO：`IngestReportDTO`、`IngestReportDetailDTO`、`SkippedRowDTO`（`models/ingest.py`，FZ-3 组成部分）
+  - `BatchDetailDTO.report: IngestReportDTO | None = None`（FZ-2 加字段，C2 冻结时预留的位置，非 BREAKING）
+  - `staging_batch` 新列 ×4：`ingest_started_at` / `committed_at` / `pending_delete_flag` / `deleted_at`
+  - `raw_YYYY_MM` 16 列 + 2 索引（与 SDD §5.2 模板逐列一致）
+  - 7×6 状态矩阵开放 `ingest` / `confirm` 两列（C2 期间全域 `E2002` 的口径解除）
+  - 新错误码 ×3：`E3001`（入库事务失败）、`E3002`（raw 表名非法）、`E3003`（数据库忙）
+- **契约要点**：
+  - `IngestReportDTO{batch_id, total, inserted, skipped_dup, skipped_invalid, pending, monthly: dict, files_deleted, cleanup_pending, cleanup_id, finished_at}`；自洽恒等式 `total == inserted + skipped_dup + skipped_invalid`、`sum(monthly.values()) == inserted`
+  - `report_json` 只存事实（`total/inserted/skipped_dup/skipped_invalid/pending/monthly/finished_at/skipped[]`），**不存** `files_deleted` / `cleanup_*`——唯一事实源是 `pending_delete_flag`，读取时由 `from_stored` 从旗标推导（D-6 的 `skipped[]` 仅 `include_skipped=true` 时返回）
+  - `pending_delete_flag` 语义（I9）：**仅表示缓冲区物理文件的删除意图**；A 线只有 `finish_ingest` 能置 1，B 线是唯一置 0 方
+  - `monthly` 键为物理表名（`raw_2026_06`），值为该表本次写入行数
+- **原因**：C3-A 是唯一写路径，契约必须随实现一次性落定；FZ-3 的 `RawRecordDTO` 与 `/raw/*`、`/trace`、cleanup 端点属 B 线，**FZ-3 整体仍标注「待冻结」**，待 B 线与合稿完成后统一冻结
+- **影响面**：前端导入向导第三步（确认/报告）；B 线的 `/raw/months`、`/trace`、cleanup 队列都要与 `report_json` 结构对得上；C4 只读 `transaction`，不受影响
+- **回归**：`tests/integration/test_ingest_multi_month.py`（5 表逐月 101/136/182/143/107）、`test_ingest_all_dup.py`（669 条全 DUP 仍置 `ingested`、零建表）、`test_ingest_skipped_invalid.py`（D-6 分支 > 0）、`test_override_bypass_dup.py`（override 绕过 fp）、`test_raw_payload_fidelity.py`（5 月抽样逐项一致）、`test_write_path_gates.py`（grep 门禁 + `hasattr`）、`test_dto_wiring.py`
+- **批准**：xtgxiso（A 线负责人），待 C3 合稿评审复核
+
+### 2026-10-23 · C3-A 实施 · ADDITIVE · D-7 显式偏离 SDD §7.5（删文件失败返回 200 而非 409）
+
+- **对象**：`POST .../confirm` 在"数据已提交、删缓冲区文件失败"时的返回值
+- **变更前**（SDD §7.5）：返回 409 `E4003`
+- **变更后**：返回 **200 + `IngestReportDTO{files_deleted=false, cleanup_pending=true, cleanup_id}`**；`E4003` 保留给孤儿清理与 retry 失败的同步返回
+- **原因**：前端 `pages/import.js` 的 catch 分支对所有非 `E2002` 错误统一提示「（已回滚，可重试）」，返回 409 会让用户以为数据没入库而去**重复导入**；且前端已实现 `files_deleted=false` 的渲染分支（"原文件删除失败，已加入待清理列表，数据不受影响"），200 + 报告才是对齐的实现。签字依据见 `C3-合稿与耦合收口.md` §5 D-7 行
+- **影响面**：`confirm` 端点错误语义；前端 catch 分支无需改动
+- **回归**：`tests/fault_injection/test_fi_disk_full.py` 之外的 B 线场景（删除失败入队由 B 线 `test_fi_delete_failure.py` 覆盖，接口已由 `DeleteFailureSink` / `NullSink` 稳定）
+- **批准**：xtgxiso；合稿评审待签
+
+### 2026-10-23 · C3-A 实施 · INTERNAL · D-8 备查与 `filelock.py` mypy 修复
+
+- **D-8（解释性澄清，不改代码语义）**：`ingesting` 是**内存态**，库里永远查不到——崩溃时 SQLite 自动回滚，批次回到 `prechecked`，不会留下永久 `ingesting` 脏状态（PRD 9.2 收口规则 4）。第二跳 `(ingesting) → {ingested}` 只存在于 `batch_guard` 矩阵的内存校验中，目的是让 `assert_transition(target=INGESTED)` 可验证
+- **对象**：`src/account_dashboard/infra/filelock.py`
+- **变更前**：`importlib.import_module("msvcrt")` 动态导入，`mypy` 在 Linux 上报 `module is installed, but missing library stubs or py.typed marker` ×4
+- **变更后**：改为 `sys.platform` 判据 + `TYPE_CHECKING` 分支的静态导入声明
+- **为什么契约不受影响**：锁行为逐分支等价（`LK_NBLCK`/`LK_UNLCK`/`flock` 调用序列不变），`test_buffer_file.py` 与 `test_startup.py` 全绿；这是 C1 遗留的 mypy 噪音，非契约变更
+- **影响面**：无（仅类型检查洁净度）
+- **回归**：`tests/unit/test_buffer_file.py`、`tests/integration/test_startup.py`、`mypy src` 64 文件零问题
+### 2026-10-23 · C3-B · ADDITIVE · FZ-3 追溯与清理 DTO 首次落地 + 7 个新端点
+
+- **对象**：`IngestReportDTO` / `IngestReportDetailDTO` / `SkippedRowDTO` / `RawMonthDTO` / `RawRecordDTO` / `RawRecordDetailDTO` / `TraceTransactionDTO` / `TraceDTO` / `CleanupItemDTO` / `OrphanCleanupDTO` / `OrphanCleanupReq`
+- **新增端点（7 个，均在 `/api/v1` 前缀下）**：
+  - `POST /staging/orphans/cleanup`：孤儿清理三重白名单后的批量删除（`OrphanCleanupReq.names` 1~200 个）
+  - `GET /maintenance/cleanup`（`?status=pending|done|abandoned`）与 `POST /maintenance/cleanup/{cleanup_id}/retry`：待清理队列的只读浏览与手动重试（retry 幂等）
+  - `GET /raw/months`：月份清单，`month` 为 `2026_06`（**无 `raw_` 前缀**，前端按 `x.month.slice(5)` 展示）
+  - `GET /raw/{yyyy_mm}/records`：分页（`page_size` 10~200，越界 `E1010`；缺月返回空数组而非 404）；**列表项不含 `raw_payload`**
+  - `GET /raw/records/{record_id}`：详情，`raw_payload` 为整行 JSON 原貌；未知 id → 404 `E2001`
+  - `GET /transactions/{transaction_id}/trace`：四块追溯；未知流水 → 404 `E2010`
+- **null 语义（新增定义，属 ADDITIVE）**：`TraceDTO` 的 `batch` / `raw_record` / `mapping_snapshot` **允许为 null** 且整体仍返回 200 —— 这是数据分叉信号（服务端记 WARN），不一律报错；`transaction` 缺失才是 404。`RawMonthDTO.month` 与 `/raw/{yyyy_mm}` 路径参数同形（`2026_06`），与表名 `raw_2026_06` 的换算只经 `infra/raw_naming.py` 单一权威
+- **`TraceTransactionDTO` 的 11 个双写字段**：`batch_id, row_no, occurred_at, amount_cents, direction, counterparty, item, txn_type, payment_method, channel, fp`，与 `RawRecordDTO` 同名同义（raw 与 transaction 的双写口径）；另含 `id` / `status` 两个主数据侧管理字段。C4 扩展 `TransactionDTO` 时**必须保留这些字段名**
+- **`IngestReportDTO`**（FZ-3 主体，随 A 线 confirm 落地时一并冻结）：`finished_at` 对应 DB 列 `committed_at`（DTO 按前端用语改名）；`monthly` 的键为 `raw_2026_06` 全表名（与 `RawMonthDTO.month` 少前缀，两处用途不同：前者对内、后者对外）
+- **错误码**：无新增，仍为 FZ-1 的 37 值；E1011/E2010/E3002/E4003 均为既有码值在新场景的启用
+- **影响面**：前端新增原始数据浏览页与追溯页；`pages/buffer.js` 的"清理"按钮自 C2 起就在调 `POST /staging/orphans/cleanup`，本次补齐后端
+- **回归**：`tests/integration/test_staging_contract.py`（16 端点集合）、`test_raw_months.py`、`test_raw_records_pagination.py`、`test_trace_back.py`、`test_trace_missing_blocks.py`、`test_orphan_whitelist.py`、`test_delete_intent.py`、`test_cleanup_retry.py`、`test_reconcile_order.py`、`test_reconcile_orphan.py`、`test_reconcile_not_blocking.py`、`test_delete_with_retry_windows.py`、`tests/fault_injection/test_fi_crash_after_commit.py`
+
+### 2026-10-23 · C3-B · INTERNAL · 启动对账升级为写动作（D-7 / D-8），`ReconciliationReport` 只加字段
+
+- **对象**：`infra/reconciliation.py`、`repositories/cleanup_repo.py`、`services/cleanup_service.py`、`infra/buffer_file.py`
+- **变更前**：C1 起的 `run_startup_reconciliation(database, paths)` 只做只读清点（四步均为计数）
+- **变更后**：升级为**带自愈动作**的对账，签名与返回类型不变，`main.py` 无需改动。四步（顺序不可换）：① `ingesting` → `prechecked` 重置（D-8 保险丝，命中即 WARN）② `ingested + flag=1` 补删（**一次尝试**，成功清零、失败入队）③ `ingested + flag=0` 但文件仍存在 → WARN + 入队，**不自动删** ④ 孤儿扫描只报告。任一步抛异常只记 WARN 后继续——**不阻塞启动**是硬约束
+- **`ReconciliationReport` 新增 4 个字段**（FZ-1 的前四个字段 `interrupted_batches` / `pending_deletes` / `orphans` / `missing_buffer_dir` 一字未动，`/health.backlog` 只消费前四个，不受影响）：`inconsistent_batches`、`deleted_files`、`enqueued_files`、`orphan_names`
+- **D-7（清零与入队是两个独立小事务）**：`CleanupService.on_committed` 中删文件 → 成功则独立事务清零（`flag=0` + `deleted_at`），失败则独立事务入队；两者互斥不合并，任一半途失败都能被下次对账 ② 幂等自愈
+- **D-8（删除失败不回流解状态）**：批次提交后删文件失败，批次**仍保持 `ingested`**（用户可见数据不受影响），失败路径入 `cleanup_queue` 等用户手动 retry；不对批次做任何回退
+- **`cleanup_queue` 表结构零变化**（C1 已建表）；`file_name` 不是列，由 `list_items` 的 LEFT JOIN `staging_batch` 派生
+- **契约不变性**：`UPDATE staging_batch` 的实际 SQL 只出现在 `staging_repo.py` 与 `cleanup_repo.py`（后者仅 `pending_delete_flag` 清零与 `status='ingesting'` 两种模式）；本线无 `INSERT INTO "transaction"`、无运行时 `CREATE TABLE raw_*`（`raw_*` 表由 A 线 `seed`/迁移负责）
+- **影响面**：`/health` 的 `backlog` 读数口径不变；启动耗时增加一次文件系统遍历（可接受，已在 `test_reconcile_not_blocking.py` 断言不阻塞）
+- **回归**：`tests/fault_injection/test_fi_crash_after_commit.py`（故障注入 2 进 CI）、`test_reconcile_order.py`（spy 锁定 ①②③④ 调用序）、`test_reconcile_not_blocking.py`（3 个文件全删失败仍起服务）
+
+### 2026-10-23 · C3 合稿 · INTERNAL · D-5 备查（`mapping_snapshot` 两段式冻结）
+
+- **对象**：`staging_batch.mapping_snapshot` 的写入时机与只读边界
+- **裁决**（D-5）：**两段式** —— C2 的预检写入保留（供预检可重放、重解析置 `NULL`）；C3 在**入库事务内**读取该快照、重放入库、并以 `sort_keys=True` 原样回写，此后该字段**只读**
+- **依据**：I11 要的是"入库时刻的不可变快照"。事务内回写保证"用来入库的那份"与"存下来的那份"是同一串字节；崩溃回滚时两份都不留残局
+- **守卫**（合稿落地）：`UPDATE ... SET mapping_snapshot` 全库只允许出现在 `staging_repo.update_precheck`（C2，置值/NULL）与 `staging_repo.finish_ingest`（C3，冻结）两处，由 `test_write_path_gates.py` 的 grep 门禁强制
+- **为什么是 INTERNAL 不是契约变更**：字段名、类型、`null` 语义均未变，变的是写入时机与只读边界，属实现层澄清
+- **影响面**：C4 重算依赖该快照得到与入库一致的 `ParsedRow`；B 线 `trace` 的 `mapping_snapshot` 块直接读它
+- **回归**：`test_ingest_multi_month.py`（D-5 冻结回写断言）、`test_write_path_gates.py`（门禁 2）、`test_trace_back.py`（四块含快照）
+
+### 2026-10-23 · C3 合稿 · ADDITIVE · FZ-3 冻结 v1（10 DTO + 10 端点 + 三处合稿澄清）
+
+- **对象**：`models/ingest.py` 全量 10 个 DTO、`ingest_ports.py` 协议、`raw_YYYY_MM` 表与索引、`pending_delete_flag` 生命周期、7×6 状态矩阵、C3 全部 10 个新端点
+- **冻结内容**（Gate 0 §3.1 规格 + 两线实现取并集，逐字段核对）：
+  - `IngestReportDTO{batch_id,total,inserted,skipped_dup,skipped_invalid,pending,monthly,files_deleted,cleanup_pending,cleanup_id,finished_at}`；`monthly` 键为 `raw_YYYY_MM`，`RawMonthDTO.month` 为 `YYYY_MM`（两处不同构有意为之）；`finished_at` ≠ DB 列 `committed_at`
+  - `IngestReportDetailDTO.skipped` 仅 `include_skipped=true` 填充；`SkippedRowDTO.reason ∈ {AMOUNT_PARSE,TIME_PARSE,DUP}`，`raw` 截断 64 字符
+  - `RawRecordDTO` 15 字段（列表不带 `raw_payload`）；`RawRecordDetailDTO` 加整行 JSON 原貌
+  - `TraceDTO` 四块：`transaction` 必填，`batch` / `raw_record` / `mapping_snapshot` 可空且整体仍 200（数据分叉信号，服务端记 WARN）；未知流水 → 404 `E2010`
+  - `CleanupItemDTO.file_name` 由 LEFT JOIN `staging_batch` 派生（DDL 无此列）；`OrphanCleanupReq.names` 1~200
+  - `DeleteFailureSink.on_committed(batch_id, file_path) -> DeleteOutcome`；`cleanup_id` 在 `deleted=False` 时必填；Protocol 加 `runtime_checkable`
+  - 端点 ×10：confirm / report（A）；orphans/cleanup、maintenance/cleanup、maintenance/cleanup/{id}/retry、raw/months、raw/{yyyy_mm}/records、raw/records/{id}、transactions/{id}/trace（B）
+- **合稿期三处澄清（均为 ADDITIVE，已两侧同改）**：
+  1. **`TraceTransactionDTO` 保留 B 的 11 个双写字段**（规格 10 字段 + `txn_type`/`payment_method`/`fp`）：B 的追溯用例按 11 字段断言 raw 与 transaction 一致，属对 Gate 0 规格的 ADDITIVE 扩展；C4 扩展 `TransactionDTO` 时这 11 个名字仍须保留
+  2. **`raw_naming` 抛 infra `RawTableError`**（码值 `E3002` 不变，由 `error_mapping` 翻成 `TransactionError` 出海）：A 原为直抛 `TransactionError`，合并时收敛回 infra 房风格（C2 起「infra 抛 InfraError、业务层翻译」）；`raw_repo.table_exists` 同步。翻译契约由 `tests/unit/test_error_mapping.py` 钉住
+  3. **`ingest_ports.DeleteFailureSink` 加 `@runtime_checkable`**：纯增强，不影响既有调用
+- **D-5 ~ D-8 的状态**：四条裁决全部登记——D-5（`mapping_snapshot` 两段式冻结，INTERNAL 备查，见上一条）、D-6（不可解析行进 `report_json.skipped[]`，随 A/B 两条 FZ-3 落地登记）、D-7（删文件失败返回 200 + `files_deleted=false`，ADDITIVE 偏离已由 A 线登记并签字，合稿 M2/M5 复验通过）、D-8（`ingesting` 仅内存态，INTERNAL 澄清已由 B 线登记）。均随本冻结转正
+- **未加入**：`/stats/*`、`/reports/*`、`/pending`、`/rules`、`/settings`、`/backups` —— 属 C4/C5，`test_staging_contract.py` 的缺席断言已改守这些路径
+- **影响面**：前端导入向导第三步、原始数据浏览页、追溯页、缓冲区管理页；C4 只读 `transaction` 与 `raw_read_repo.iter_month`
+- **回归**：397 passed / 2 skipped / 1 failed（`test_unc_path_rejected` 为 C1 起已知 Windows 专属用例）；M3 真实样例 689/669 逐月相等；M4 四条故障注入全绿 + `idx_raw_YYYY_MM_batch` 存在；M5 崩溃自愈闭环通过；覆盖率 `ingest_service` 98% / `cleanup_service` 100%；`ruff` / `mypy`（73 文件）零问题；前端自检通过
+- **批准**：xtgxiso（合稿执行），待项目负责人复核
 
 ---
 

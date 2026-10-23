@@ -53,6 +53,32 @@
         "title": "ApiResponse[BufferUsageDTO]",
         "type": "object"
       },
+      "ApiResponse_CleanupItemDTO_": {
+        "properties": {
+          "code": {
+            "default": "OK",
+            "title": "Code",
+            "type": "string"
+          },
+          "data": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CleanupItemDTO"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "message": {
+            "default": "",
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "title": "ApiResponse[CleanupItemDTO]",
+        "type": "object"
+      },
       "ApiResponse_EnsureDirDTO_": {
         "properties": {
           "code": {
@@ -105,6 +131,58 @@
         "title": "ApiResponse[HealthDTO]",
         "type": "object"
       },
+      "ApiResponse_IngestReportDTO_": {
+        "properties": {
+          "code": {
+            "default": "OK",
+            "title": "Code",
+            "type": "string"
+          },
+          "data": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/IngestReportDTO"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "message": {
+            "default": "",
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "title": "ApiResponse[IngestReportDTO]",
+        "type": "object"
+      },
+      "ApiResponse_IngestReportDetailDTO_": {
+        "properties": {
+          "code": {
+            "default": "OK",
+            "title": "Code",
+            "type": "string"
+          },
+          "data": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/IngestReportDetailDTO"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "message": {
+            "default": "",
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "title": "ApiResponse[IngestReportDetailDTO]",
+        "type": "object"
+      },
       "ApiResponse_MappingResultDTO_": {
         "properties": {
           "code": {
@@ -129,6 +207,32 @@
           }
         },
         "title": "ApiResponse[MappingResultDTO]",
+        "type": "object"
+      },
+      "ApiResponse_OrphanCleanupDTO_": {
+        "properties": {
+          "code": {
+            "default": "OK",
+            "title": "Code",
+            "type": "string"
+          },
+          "data": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OrphanCleanupDTO"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "message": {
+            "default": "",
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "title": "ApiResponse[OrphanCleanupDTO]",
         "type": "object"
       },
       "ApiResponse_OverrideDTO_": {
@@ -181,6 +285,32 @@
           }
         },
         "title": "ApiResponse[Page[BatchDTO]]",
+        "type": "object"
+      },
+      "ApiResponse_Page_RawRecordDTO__": {
+        "properties": {
+          "code": {
+            "default": "OK",
+            "title": "Code",
+            "type": "string"
+          },
+          "data": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Page_RawRecordDTO_"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "message": {
+            "default": "",
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "title": "ApiResponse[Page[RawRecordDTO]]",
         "type": "object"
       },
       "ApiResponse_ParseResultDTO_": {
@@ -261,6 +391,32 @@
         "title": "ApiResponse[PreviewDTO]",
         "type": "object"
       },
+      "ApiResponse_RawRecordDetailDTO_": {
+        "properties": {
+          "code": {
+            "default": "OK",
+            "title": "Code",
+            "type": "string"
+          },
+          "data": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RawRecordDetailDTO"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "message": {
+            "default": "",
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "title": "ApiResponse[RawRecordDetailDTO]",
+        "type": "object"
+      },
       "ApiResponse_RemovedDTO_": {
         "properties": {
           "code": {
@@ -313,6 +469,62 @@
         "title": "ApiResponse[TemplateDTO]",
         "type": "object"
       },
+      "ApiResponse_TraceDTO_": {
+        "properties": {
+          "code": {
+            "default": "OK",
+            "title": "Code",
+            "type": "string"
+          },
+          "data": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TraceDTO"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "message": {
+            "default": "",
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "title": "ApiResponse[TraceDTO]",
+        "type": "object"
+      },
+      "ApiResponse_list_CleanupItemDTO__": {
+        "properties": {
+          "code": {
+            "default": "OK",
+            "title": "Code",
+            "type": "string"
+          },
+          "data": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/CleanupItemDTO"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Data"
+          },
+          "message": {
+            "default": "",
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "title": "ApiResponse[list[CleanupItemDTO]]",
+        "type": "object"
+      },
       "ApiResponse_list_OrphanFileDTO__": {
         "properties": {
           "code": {
@@ -341,6 +553,36 @@
           }
         },
         "title": "ApiResponse[list[OrphanFileDTO]]",
+        "type": "object"
+      },
+      "ApiResponse_list_RawMonthDTO__": {
+        "properties": {
+          "code": {
+            "default": "OK",
+            "title": "Code",
+            "type": "string"
+          },
+          "data": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/RawMonthDTO"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Data"
+          },
+          "message": {
+            "default": "",
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "title": "ApiResponse[list[RawMonthDTO]]",
         "type": "object"
       },
       "ApiResponse_list_TemplateDTO__": {
@@ -601,6 +843,16 @@
             "title": "Pending Count",
             "type": "integer"
           },
+          "report": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/IngestReportDTO"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "status": {
             "$ref": "#/components/schemas/BatchStatus"
           },
@@ -712,6 +964,82 @@
         "title": "Channel",
         "type": "string"
       },
+      "CleanupItemDTO": {
+        "properties": {
+          "attempts": {
+            "title": "Attempts",
+            "type": "integer"
+          },
+          "batch_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Batch Id"
+          },
+          "created_at": {
+            "title": "Created At",
+            "type": "string"
+          },
+          "file_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "File Name"
+          },
+          "file_path": {
+            "title": "File Path",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "last_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Error"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "updated_at": {
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "file_path",
+          "reason",
+          "attempts",
+          "status",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "CleanupItemDTO",
+        "type": "object"
+      },
       "DedupLabel": {
         "enum": [
           "new",
@@ -804,6 +1132,157 @@
           "db_ok"
         ],
         "title": "HealthDTO",
+        "type": "object"
+      },
+      "IngestReportDTO": {
+        "description": "导入报告四数字（前端报告页的唯一数据源，EX-22：不用预检数字替代）。",
+        "properties": {
+          "batch_id": {
+            "title": "Batch Id",
+            "type": "string"
+          },
+          "cleanup_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cleanup Id"
+          },
+          "cleanup_pending": {
+            "default": false,
+            "title": "Cleanup Pending",
+            "type": "boolean"
+          },
+          "files_deleted": {
+            "default": true,
+            "title": "Files Deleted",
+            "type": "boolean"
+          },
+          "finished_at": {
+            "title": "Finished At",
+            "type": "string"
+          },
+          "inserted": {
+            "title": "Inserted",
+            "type": "integer"
+          },
+          "monthly": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Monthly",
+            "type": "object"
+          },
+          "pending": {
+            "title": "Pending",
+            "type": "integer"
+          },
+          "skipped_dup": {
+            "title": "Skipped Dup",
+            "type": "integer"
+          },
+          "skipped_invalid": {
+            "default": 0,
+            "title": "Skipped Invalid",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "batch_id",
+          "total",
+          "inserted",
+          "skipped_dup",
+          "pending",
+          "finished_at"
+        ],
+        "title": "IngestReportDTO",
+        "type": "object"
+      },
+      "IngestReportDetailDTO": {
+        "description": "``report?include_skipped=true`` 时才填 ``skipped``（D-6 的明细）。",
+        "properties": {
+          "batch_id": {
+            "title": "Batch Id",
+            "type": "string"
+          },
+          "cleanup_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cleanup Id"
+          },
+          "cleanup_pending": {
+            "default": false,
+            "title": "Cleanup Pending",
+            "type": "boolean"
+          },
+          "files_deleted": {
+            "default": true,
+            "title": "Files Deleted",
+            "type": "boolean"
+          },
+          "finished_at": {
+            "title": "Finished At",
+            "type": "string"
+          },
+          "inserted": {
+            "title": "Inserted",
+            "type": "integer"
+          },
+          "monthly": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Monthly",
+            "type": "object"
+          },
+          "pending": {
+            "title": "Pending",
+            "type": "integer"
+          },
+          "skipped": {
+            "items": {
+              "$ref": "#/components/schemas/SkippedRowDTO"
+            },
+            "title": "Skipped",
+            "type": "array"
+          },
+          "skipped_dup": {
+            "title": "Skipped Dup",
+            "type": "integer"
+          },
+          "skipped_invalid": {
+            "default": 0,
+            "title": "Skipped Invalid",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "batch_id",
+          "total",
+          "inserted",
+          "skipped_dup",
+          "pending",
+          "finished_at"
+        ],
+        "title": "IngestReportDetailDTO",
         "type": "object"
       },
       "MappingReq": {
@@ -971,6 +1450,48 @@
         "title": "MappingResultDTO",
         "type": "object"
       },
+      "OrphanCleanupDTO": {
+        "properties": {
+          "failed": {
+            "items": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "title": "Failed",
+            "type": "array"
+          },
+          "removed": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Removed",
+            "type": "array"
+          }
+        },
+        "title": "OrphanCleanupDTO",
+        "type": "object"
+      },
+      "OrphanCleanupReq": {
+        "description": "``POST /staging/orphans/cleanup`` 的请求体（C3-B 新增，前端已按此调用）。",
+        "properties": {
+          "names": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 200,
+            "minItems": 1,
+            "title": "Names",
+            "type": "array"
+          }
+        },
+        "required": [
+          "names"
+        ],
+        "title": "OrphanCleanupReq",
+        "type": "object"
+      },
       "OrphanFileDTO": {
         "properties": {
           "modified_at": {
@@ -1092,6 +1613,22 @@
           }
         },
         "title": "Page[BatchDTO]",
+        "type": "object"
+      },
+      "Page_RawRecordDTO_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/RawRecordDTO"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/PageMeta"
+          }
+        },
+        "title": "Page[RawRecordDTO]",
         "type": "object"
       },
       "ParseInfoDTO": {
@@ -1602,6 +2139,281 @@
         "title": "PreviewRowDTO",
         "type": "object"
       },
+      "RawMonthDTO": {
+        "properties": {
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "month": {
+            "title": "Month",
+            "type": "string"
+          }
+        },
+        "required": [
+          "month",
+          "count"
+        ],
+        "title": "RawMonthDTO",
+        "type": "object"
+      },
+      "RawRecordDTO": {
+        "description": "原始库一行的只读投影（列表不带 ``raw_payload``，5 万行时 JSON 会爆）。",
+        "properties": {
+          "amount_cents": {
+            "title": "Amount Cents",
+            "type": "integer"
+          },
+          "batch_id": {
+            "title": "Batch Id",
+            "type": "string"
+          },
+          "channel": {
+            "title": "Channel",
+            "type": "string"
+          },
+          "counterparty": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Counterparty"
+          },
+          "direction": {
+            "title": "Direction",
+            "type": "string"
+          },
+          "fp": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fp"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "imported_at": {
+            "title": "Imported At",
+            "type": "string"
+          },
+          "item": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Item"
+          },
+          "occurred_at": {
+            "title": "Occurred At",
+            "type": "string"
+          },
+          "payment_method": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Payment Method"
+          },
+          "platform_category": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Platform Category"
+          },
+          "platform_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Platform Status"
+          },
+          "row_no": {
+            "title": "Row No",
+            "type": "integer"
+          },
+          "txn_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Txn Type"
+          }
+        },
+        "required": [
+          "id",
+          "batch_id",
+          "row_no",
+          "occurred_at",
+          "amount_cents",
+          "direction",
+          "channel",
+          "imported_at"
+        ],
+        "title": "RawRecordDTO",
+        "type": "object"
+      },
+      "RawRecordDetailDTO": {
+        "properties": {
+          "amount_cents": {
+            "title": "Amount Cents",
+            "type": "integer"
+          },
+          "batch_id": {
+            "title": "Batch Id",
+            "type": "string"
+          },
+          "channel": {
+            "title": "Channel",
+            "type": "string"
+          },
+          "counterparty": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Counterparty"
+          },
+          "direction": {
+            "title": "Direction",
+            "type": "string"
+          },
+          "fp": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fp"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "imported_at": {
+            "title": "Imported At",
+            "type": "string"
+          },
+          "item": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Item"
+          },
+          "occurred_at": {
+            "title": "Occurred At",
+            "type": "string"
+          },
+          "payment_method": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Payment Method"
+          },
+          "platform_category": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Platform Category"
+          },
+          "platform_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Platform Status"
+          },
+          "raw_payload": {
+            "additionalProperties": true,
+            "title": "Raw Payload",
+            "type": "object"
+          },
+          "row_no": {
+            "title": "Row No",
+            "type": "integer"
+          },
+          "txn_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Txn Type"
+          }
+        },
+        "required": [
+          "id",
+          "batch_id",
+          "row_no",
+          "occurred_at",
+          "amount_cents",
+          "direction",
+          "channel",
+          "imported_at",
+          "raw_payload"
+        ],
+        "title": "RawRecordDetailDTO",
+        "type": "object"
+      },
       "RemovedDTO": {
         "properties": {
           "removed": {
@@ -1613,6 +2425,47 @@
           "removed"
         ],
         "title": "RemovedDTO",
+        "type": "object"
+      },
+      "SkippedRowDTO": {
+        "description": "被跳过行的明细（D-6：不可解析行既不写 raw 也不写 transaction，报告是唯一留痕）。",
+        "properties": {
+          "field": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Field"
+          },
+          "raw": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Raw"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "row_no": {
+            "title": "Row No",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "row_no",
+          "reason"
+        ],
+        "title": "SkippedRowDTO",
         "type": "object"
       },
       "TemplateDTO": {
@@ -1687,6 +2540,155 @@
         "title": "TemplateReq",
         "type": "object"
       },
+      "TraceDTO": {
+        "description": "批次追溯四块（C3 基线原为三块，补 ``transaction`` 后前端已按四块实现）。",
+        "properties": {
+          "batch": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BatchDTO"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "mapping_snapshot": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mapping Snapshot"
+          },
+          "raw_record": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RawRecordDTO"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "transaction": {
+            "$ref": "#/components/schemas/TraceTransactionDTO"
+          }
+        },
+        "required": [
+          "transaction"
+        ],
+        "title": "TraceDTO",
+        "type": "object"
+      },
+      "TraceTransactionDTO": {
+        "description": "C4 完整 ``TransactionDTO`` 的子集；C4 扩展时必须保留这些字段名。\n\n业务字段与 raw 行一一对应（双写口径的 11 字段，见\n``tests/helpers/ingest_state.py::_TRACE_FIELDS``），另加 ``id`` / ``status``\n两个主数据侧管理字段。",
+        "properties": {
+          "amount_cents": {
+            "title": "Amount Cents",
+            "type": "integer"
+          },
+          "batch_id": {
+            "title": "Batch Id",
+            "type": "string"
+          },
+          "channel": {
+            "title": "Channel",
+            "type": "string"
+          },
+          "counterparty": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Counterparty"
+          },
+          "direction": {
+            "title": "Direction",
+            "type": "string"
+          },
+          "fp": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fp"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "item": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Item"
+          },
+          "occurred_at": {
+            "title": "Occurred At",
+            "type": "string"
+          },
+          "payment_method": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Payment Method"
+          },
+          "row_no": {
+            "title": "Row No",
+            "type": "integer"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "txn_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Txn Type"
+          }
+        },
+        "required": [
+          "id",
+          "batch_id",
+          "row_no",
+          "occurred_at",
+          "amount_cents",
+          "direction",
+          "channel",
+          "status"
+        ],
+        "title": "TraceTransactionDTO",
+        "type": "object"
+      },
       "ValidationError": {
         "properties": {
           "ctx": {
@@ -1753,6 +2755,226 @@
         "summary": "Health",
         "tags": [
           "health"
+        ]
+      }
+    },
+    "/api/v1/maintenance/cleanup": {
+      "get": {
+        "operationId": "list_cleanup_api_v1_maintenance_cleanup_get",
+        "parameters": [
+          {
+            "description": "pending/done/abandoned；缺省返回全部",
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "pending/done/abandoned；缺省返回全部",
+              "title": "Status"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_list_CleanupItemDTO__"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Cleanup",
+        "tags": [
+          "maintenance"
+        ]
+      }
+    },
+    "/api/v1/maintenance/cleanup/{cleanup_id}/retry": {
+      "post": {
+        "operationId": "retry_cleanup_api_v1_maintenance_cleanup__cleanup_id__retry_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "cleanup_id",
+            "required": true,
+            "schema": {
+              "title": "Cleanup Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_CleanupItemDTO_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Retry Cleanup",
+        "tags": [
+          "maintenance"
+        ]
+      }
+    },
+    "/api/v1/raw/months": {
+      "get": {
+        "description": "有数据的月份（降序）；``count`` 与导入报告的 ``monthly`` 逐月相等。",
+        "operationId": "list_months_api_v1_raw_months_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_list_RawMonthDTO__"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Months",
+        "tags": [
+          "raw"
+        ]
+      }
+    },
+    "/api/v1/raw/records/{record_id}": {
+      "get": {
+        "description": "详情带 ``raw_payload``（导入原貌，I7）；列表不带（5 万行时 JSON 会爆）。",
+        "operationId": "get_record_api_v1_raw_records__record_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "record_id",
+            "required": true,
+            "schema": {
+              "title": "Record Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_RawRecordDetailDTO_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Record",
+        "tags": [
+          "raw"
+        ]
+      }
+    },
+    "/api/v1/raw/{yyyy_mm}/records": {
+      "get": {
+        "operationId": "list_records_api_v1_raw__yyyy_mm__records_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "yyyy_mm",
+            "required": true,
+            "schema": {
+              "title": "Yyyy Mm",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "title": "Page",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "title": "Page Size",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_Page_RawRecordDTO__"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Records",
+        "tags": [
+          "raw"
         ]
       }
     },
@@ -1903,6 +3125,49 @@
         "summary": "Get Batch",
         "tags": [
           "staging"
+        ]
+      }
+    },
+    "/api/v1/staging/batches/{batch_id}/confirm": {
+      "post": {
+        "description": "确认入库：单事务双写 + 事务外删文件。重复确认 → 409 E2002。",
+        "operationId": "confirm_batch_api_v1_staging_batches__batch_id__confirm_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "batch_id",
+            "required": true,
+            "schema": {
+              "title": "Batch Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_IngestReportDTO_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Confirm Batch",
+        "tags": [
+          "ingest"
         ]
       }
     },
@@ -2256,6 +3521,59 @@
         ]
       }
     },
+    "/api/v1/staging/batches/{batch_id}/report": {
+      "get": {
+        "description": "导入报告；``skipped[]`` 明细仅 ``include_skipped=true`` 时返回（D-6）。",
+        "operationId": "get_batch_report_api_v1_staging_batches__batch_id__report_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "batch_id",
+            "required": true,
+            "schema": {
+              "title": "Batch Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "include_skipped",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Include Skipped",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_IngestReportDetailDTO_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Batch Report",
+        "tags": [
+          "ingest"
+        ]
+      }
+    },
     "/api/v1/staging/ensure-dir": {
       "post": {
         "operationId": "ensure_dir_api_v1_staging_ensure_dir_post",
@@ -2293,6 +3611,48 @@
           }
         },
         "summary": "List Orphans",
+        "tags": [
+          "staging"
+        ]
+      }
+    },
+    "/api/v1/staging/orphans/cleanup": {
+      "post": {
+        "description": "清理孤儿文件（前端\"清理\"按钮已调用，C3-B 补后端）。\n\n三重白名单（路径防穿越 → 名字形态 → 不在已知批次）见\n``CleanupService.cleanup_orphans``；任一不过整体拒绝，验证阶段不删文件。",
+        "operationId": "cleanup_orphans_api_v1_staging_orphans_cleanup_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OrphanCleanupReq"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_OrphanCleanupDTO_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Cleanup Orphans",
         "tags": [
           "staging"
         ]
@@ -2404,6 +3764,48 @@
         "summary": "Buffer Usage",
         "tags": [
           "staging"
+        ]
+      }
+    },
+    "/api/v1/transactions/{transaction_id}/trace": {
+      "get": {
+        "operationId": "trace_transaction_api_v1_transactions__transaction_id__trace_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "transaction_id",
+            "required": true,
+            "schema": {
+              "title": "Transaction Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_TraceDTO_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Trace Transaction",
+        "tags": [
+          "transactions"
         ]
       }
     }

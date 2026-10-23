@@ -69,6 +69,13 @@ class ParsedRow:
     issues: list[ParseIssue] = field(default_factory=list)
 
     @property
+    def is_valid(self) -> bool:
+        """时间与金额都可解析（D-6：不可解析的行既不写 raw 也不写 transaction，
+        只在导入报告的 ``skipped_invalid`` 里留痕）。方向有关键词兜底，不会为 None。
+        """
+        return self.occurred_at is not None and self.amount_cents is not None
+
+    @property
     def occurred_at_iso(self) -> str | None:
         return to_iso(self.occurred_at) if self.occurred_at is not None else None
 
